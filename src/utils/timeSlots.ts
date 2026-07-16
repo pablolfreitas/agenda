@@ -38,8 +38,9 @@ const SLOT_RANGES: SlotRange[] = [
   { fromMin: 9 * 60, toMin: 12 * 60, stepMin: 30 },  // Manhã
   { fromMin: 12 * 60, toMin: 14 * 60, stepMin: 15 }, // Almoço
   { fromMin: 14 * 60, toMin: 18 * 60, stepMin: 30 }, // Tarde
-  { fromMin: 18 * 60, toMin: 19 * 60, stepMin: 15 }, // Transição
-  { fromMin: 19 * 60, toMin: 24 * 60, stepMin: 75 }, // Noite
+  { fromMin: 18 * 60, toMin: 19 * 60, stepMin: 15 }, // Transição tarde/noite
+  { fromMin: 19 * 60, toMin: 22 * 60, stepMin: 30 }, // Início da noite
+  { fromMin: 22 * 60, toMin: 24 * 60, stepMin: 60 }, // Noite tardia
 ];
 
 function minutesToHHMM(totalMin: number, normalizeMidnight = true): string {

@@ -28,6 +28,7 @@ import {
   Plus,
   Trash2,
   Timer,
+  X,
 } from 'lucide-react';
 import './Dashboard.css';
 
@@ -77,6 +78,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigg
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [detailTask, setDetailTask] = useState<Task | null>(null);
   const [isAndroid] = useState(() => /android/i.test(navigator.userAgent));
 
   const defaultInitialSlot = 9;
@@ -455,13 +457,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigg
                               )}
                             </span>
                             {hasDetails && (
-                              <span className="task-details-hint">
-                                <ChevronDown size={13} className="hint-chevron" />
-                                {isExpanded ? 'ocultar detalhes' : 'ver detalhes'}
-                              </span>
-                            )}
-                            {hasDetails && isExpanded && (
-                              <p className="task-desc">{task.descricao}</p>
+                              <button
+                                className="btn-details-hint"
+                                onClick={(e) => { e.stopPropagation(); setDetailTask(task); }}
+                              >
+                                <ChevronDown size={13} />
+                                ver anotação
+                              </button>
                             )}
                           </div>
 
@@ -478,9 +480,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigg
                             </button>
                             {isAndroid && (
                               <a
-                                href={`intent:#Intent;action=android.intent.action.SET_TIMER;i.android.intent.extra.alarm.LENGTH=${getTaskDurationMinutes(task.bloco_inicio_id, task.quantidade_blocos) * 60};S.android.intent.extra.alarm.MESSAGE=${encodeURIComponent(task.titulo)};B.android.intent.extra.alarm.SKIP_UI=true;end`}
+                                href={`intent:#Intent;action=android.intent.action.SET_TIMER;i.android.intent.extra.alarm.LENGTH=${getTaskDurationMinutes(task.bloco_inicio_id, task.quantidade_blocos) * 60};S.android.intent.extra.alarm.MESSAGE=${encodeURIComponent(task.titulo)};B.android.intent.extra.alarm.SKIP_UI=false;end`}
                                 className="btn-icon"
-                                title={`Definir Timer de ${getTaskDurationMinutes(task.bloco_inicio_id, task.quantidade_blocos)} min no Relógio`}
+                                title={`Timer: ${getTaskDurationMinutes(task.bloco_inicio_id, task.quantidade_blocos)} min`}
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <Timer size={16} />
@@ -550,6 +552,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigg
           </div>
         )}
       </main>
+
+      {/* Modal de detalhes da tarefa */}
+      {detailTask && (
+        <div className="detail-modal-overlay" onClick={() => setDetailTask(null)}>
+          <div className="detail-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="detail-modal-header">
+              <span
+                className="cat-badge"
+                style={{
+                  background: getCategory(detailTask.categoria).soft,
+                  color: getCategory(detailTask.categoria).color,
+                }}
+              >
+                {getCategory(detailTask.categoria).label}
+              </span>
+              <button className="detail-modal-close" onClick={() => setDetailTask(null)}>
+                <X size={18} />
+              </button>
+            </div>
+            <h3 className="detail-modal-title">{detailTask.titulo}</h3>
+            <p className="detail-modal-desc">{detailTask.descricao}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
