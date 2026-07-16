@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState } from 'react';
 import { Flower2, Phone, Mail, Lock } from 'lucide-react';
 import { supabase } from '../../services/supabaseClient';

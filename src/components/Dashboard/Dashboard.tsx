@@ -12,6 +12,7 @@ import {
   getWeekStart,
   parseLocalDate,
   shiftDate,
+  getTaskDurationMinutes,
 } from '../../utils/timeSlots';
 import { TaskFormInline } from '../TaskFormInline/TaskFormInline';
 import {
@@ -26,6 +27,7 @@ import {
   Pencil,
   Plus,
   Trash2,
+  Timer,
 } from 'lucide-react';
 import './Dashboard.css';
 
@@ -75,6 +77,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigg
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [isAndroid] = useState(() => /android/i.test(navigator.userAgent));
 
   const defaultInitialSlot = 9;
   const isToday = selectedDate === getLocalDateString();
@@ -473,6 +476,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigg
                             >
                               <Pencil size={16} />
                             </button>
+                            {isAndroid && (
+                              <a
+                                href={`intent:#Intent;action=android.intent.action.SET_TIMER;i.android.intent.extra.alarm.LENGTH=${getTaskDurationMinutes(task.bloco_inicio_id, task.quantidade_blocos) * 60};S.android.intent.extra.alarm.MESSAGE=${encodeURIComponent(task.titulo)};B.android.intent.extra.alarm.SKIP_UI=true;end`}
+                                className="btn-icon"
+                                title={`Definir Timer de ${getTaskDurationMinutes(task.bloco_inicio_id, task.quantidade_blocos)} min no Relógio`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <Timer size={16} />
+                              </a>
+                            )}
                             {gcalUrl && (
                               <a
                                 href={gcalUrl}

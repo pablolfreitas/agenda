@@ -193,3 +193,14 @@ export function getWeekDays(iso: string): string[] {
   const start = getWeekStart(iso);
   return Array.from({ length: 7 }, (_, i) => shiftDate(start, i));
 }
+
+export function getTaskDurationMinutes(startSlotId: number, blockCount: number): number {
+  let totalMin = 0;
+  for (let i = 0; i < blockCount; i++) {
+    const slot = findSlot(startSlotId + i);
+    if (slot) {
+      totalMin += slot.durationMin;
+    }
+  }
+  return totalMin;
+}
