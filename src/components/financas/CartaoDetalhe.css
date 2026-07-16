@@ -1,0 +1,240 @@
+.card-detail-summary {
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  background: var(--surface-soft);
+}
+
+.detail-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.detail-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.detail-value {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-top: 2px;
+}
+
+.btn-pay-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+  transition: opacity 0.2s;
+}
+
+.btn-pay-status.paid {
+  background: var(--success);
+  color: #fff;
+}
+
+.btn-pay-status.pending {
+  background: var(--surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.btn-pay-status:hover {
+  opacity: 0.9;
+}
+
+.btn-add-compra {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  border: 1.5px dashed var(--border-strong);
+  background: var(--surface);
+  color: var(--accent);
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+  margin-bottom: 20px;
+}
+
+.btn-add-compra:hover {
+  background: var(--surface-soft);
+  border-color: var(--accent);
+}
+
+.card-detail-form {
+  padding: 20px;
+  margin-bottom: 20px;
+  border-color: var(--accent-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card-detail-form h4 {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.btn-cancel {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-cancel:hover {
+  background: var(--surface-soft);
+}
+
+.btn-add-submit {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 6px var(--accent-glow);
+}
+
+.btn-add-submit:hover {
+  opacity: 0.9;
+}
+
+.purchases-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.purchases-list h4 {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.purchase-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+}
+
+.purchase-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.purchase-desc {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.purchase-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.badge-parcela {
+  font-size: 0.62rem;
+  font-weight: 700;
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.purchase-date {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.purchase-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.purchase-val {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.purchase-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.action-btn-danger {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--danger);
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.action-btn-danger:hover {
+  background: var(--danger-soft);
+}
+
+.action-btn-danger-all {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--danger);
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  height: 26px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.action-btn-danger-all:hover {
+  background: var(--danger-soft);
+}

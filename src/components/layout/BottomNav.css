@@ -1,0 +1,120 @@
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--bottom-nav-height);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  z-index: 990;
+  padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.03);
+}
+
+.bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  height: 100%;
+  transition: color 0.2s, transform 0.1s;
+}
+
+.bottom-nav-item:active {
+  transform: scale(0.95);
+}
+
+.bottom-nav-item svg {
+  transition: transform 0.2s;
+}
+
+.bottom-nav-item.active {
+  color: var(--accent);
+}
+
+.bottom-nav-item.active svg {
+  transform: translateY(-2px);
+}
+
+.bottom-nav-item span {
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+/* Central action button */
+.bottom-nav-item.create-btn {
+  position: relative;
+  top: -12px;
+  max-width: 72px;
+  z-index: 1000;
+}
+
+.bottom-nav-item.create-btn span {
+  margin-top: 2px;
+}
+
+.plus-circle {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--lilac));
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-float);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.bottom-nav-item.create-btn:hover .plus-circle {
+  transform: scale(1.08) rotate(90deg);
+}
+
+.bottom-nav-item.create-btn:active .plus-circle {
+  transform: scale(0.95);
+}
+
+/* Admin Item with badge */
+.admin-icon-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.pending-badge {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 700;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--surface);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  animation: badge-pulse 1.8s infinite;
+}
+
+@keyframes badge-pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
+}

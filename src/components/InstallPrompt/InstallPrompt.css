@@ -1,0 +1,108 @@
+/* ─── Banner de instalação PWA ─── */
+.install-banner {
+  position: fixed;
+  bottom: 88px; /* acima do bottom-nav */
+  left: 12px;
+  right: 12px;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 12px;
+  background: linear-gradient(135deg, #fff0f6 0%, #f9eeff 100%);
+  border: 1px solid rgba(194, 104, 140, 0.25);
+  border-radius: 16px;
+  box-shadow:
+    0 8px 32px rgba(155, 77, 202, 0.15),
+    0 2px 8px rgba(0, 0, 0, 0.08);
+  animation: install-slide-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes install-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.install-banner-icon {
+  font-size: 28px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.install-banner-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.install-banner-text strong {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #5a1a3a;
+}
+
+.install-banner-text span {
+  font-size: 0.75rem;
+  color: #7a4060;
+  line-height: 1.4;
+}
+
+.install-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.install-btn-primary {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 12px;
+  background: linear-gradient(135deg, #c2688c, #9b4dca);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.2s, transform 0.15s;
+  box-shadow: 0 3px 10px rgba(194, 104, 140, 0.4);
+}
+
+.install-btn-primary:hover {
+  opacity: 0.9;
+  transform: scale(1.04);
+}
+
+.install-btn-primary:active {
+  transform: scale(0.97);
+}
+
+.install-btn-dismiss {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: rgba(0, 0, 0, 0.06);
+  color: #7a4060;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.install-btn-dismiss:hover {
+  background: rgba(0, 0, 0, 0.12);
+}

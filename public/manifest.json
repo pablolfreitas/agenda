@@ -1,0 +1,45 @@
+{
+  "short_name": "Néctar",
+  "name": "Néctar — Agenda & Finanças",
+  "description": "Sua vida, planejada e organizada com carinho",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    }
+  ],
+  "start_url": "/",
+  "scope": "/",
+  "background_color": "#fdf6f4",
+  "theme_color": "#9b4dca",
+  "display": "standalone",
+  "orientation": "portrait",
+  "lang": "pt-BR",
+  "categories": ["productivity", "lifestyle"]
+}

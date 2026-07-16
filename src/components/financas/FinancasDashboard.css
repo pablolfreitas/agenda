@@ -1,0 +1,464 @@
+.financas-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  width: 100%;
+  padding: 16px 16px 90px 16px; /* space for bottom nav */
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.financas-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 8px 4px;
+}
+
+.financas-header h2 {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.month-selector {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  outline: none;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+}
+
+.btn-icon {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+  transition: transform 0.2s, background-color 0.2s;
+  padding: 0;
+}
+
+.btn-icon:hover {
+  transform: scale(1.05);
+  background: var(--surface-soft);
+}
+
+/* --- SUMMARY CARD --- */
+.finance-summary-card {
+  position: relative;
+  background: linear-gradient(135deg, var(--surface) 0%, var(--surface-soft) 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px 20px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-card);
+}
+
+.btn-settings {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 1.15rem;
+  transition: transform 0.2s;
+}
+
+.btn-settings:hover {
+  transform: rotate(45deg) scale(1.1);
+  color: var(--accent);
+}
+
+.card-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.card-title {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-hide-values {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+}
+
+.btn-hide-values:hover {
+  color: var(--accent);
+}
+
+.card-value {
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-top: 4px;
+}
+
+.cheque-summary {
+  text-align: right;
+}
+
+.mini-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.mini-number {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-top: 2px;
+}
+
+.mini-number.negative {
+  color: var(--danger);
+}
+
+.divider-light {
+  height: 1px;
+  background: var(--border);
+  margin: 16px 0;
+}
+
+.row-duo {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.mini-block {
+  flex: 1;
+}
+
+.va-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.va-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* --- LIST CARDS (CARDS, FIXED, OTHER) --- */
+.finance-section-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-card);
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.finance-section-card.clickable {
+  cursor: pointer;
+}
+
+.finance-section-card.clickable:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+
+.section-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.section-title-row span {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.btn-manage {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: none;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btn-manage:hover {
+  opacity: 0.9;
+}
+
+.total-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.empty-msg {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 12px 0;
+}
+
+/* --- CARTOES ROW LIST --- */
+.cartao-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--surface-soft);
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.cartao-row:hover {
+  background-color: var(--surface-soft);
+}
+
+.cartao-row-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cartao-badge-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.cartao-name {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.cartao-row-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cartao-value {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.cartao-pay-status {
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: var(--success-soft);
+  color: var(--success);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+/* --- GASTOS FIXOS / OUTROS ROW LIST --- */
+.gasto-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--surface-soft);
+  font-size: 0.8rem;
+}
+
+.gasto-desc {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.gasto-value {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.gasto-row.pago .gasto-desc {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.gasto-row.pago .gasto-value {
+  color: var(--text-muted);
+}
+
+/* Overlay pages styles */
+.secondary-page {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1010;
+  background: var(--bg);
+  padding: 20px 16px env(safe-area-inset-bottom) 16px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  animation: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.page-header h3 {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.back-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+}
+
+.page-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 480px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.input-group label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.input-group input,
+.input-group select,
+.input-group textarea {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.input-group input:focus,
+.input-group select:focus,
+.input-group textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+.save-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 13px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+  box-shadow: 0 4px 12px var(--accent-glow);
+  margin-top: 8px;
+}
+
+.save-btn:hover {
+  opacity: 0.95;
+}
+
+.save-btn:active {
+  transform: scale(0.98);
+}
+
+.hint-text {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin-top: -6px;
+}
