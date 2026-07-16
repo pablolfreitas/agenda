@@ -400,13 +400,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigg
                     const hasDetails = Boolean(task.descricao && task.descricao.trim());
                     const isExpanded = expandedId === task.id;
                     const cat = getCategory(task.categoria);
+                    const isNoTime = task.bloco_inicio_id === 0;
                     return (
                       <div key={task.id} className="timeline-row">
-                        <div className="row-time">
-                          <span className="time-start">{startSlot?.start ?? '--:--'}</span>
-                          <span className="time-line" />
-                          <span className="time-end">{endSlot?.end ?? '--:--'}</span>
-                        </div>
+                        {isNoTime ? (
+                          <div className="row-time" style={{ justifyContent: 'center' }}>
+                            <span style={{ fontSize: '0.66rem', fontWeight: 700, color: 'var(--text-secondary)', background: 'var(--surface-soft)', padding: '4px 6px', borderRadius: '4px', textAlign: 'center', lineHeight: 1.1 }}>
+                              Dia<br />todo
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="row-time">
+                            <span className="time-start">{startSlot?.start ?? '--:--'}</span>
+                            <span className="time-line" />
+                            <span className="time-end">{endSlot?.end ?? '--:--'}</span>
+                          </div>
+                        )}
 
                         <div
                           className={[
@@ -437,10 +446,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigg
                           <div className="task-info">
                             <span className="task-title">{task.titulo}</span>
                             <span className="task-meta">
-                              <span className="task-duration">
-                                <Clock size={11} />
-                                {startSlot?.start} – {endSlot?.end}
-                              </span>
+                              {isNoTime ? (
+                                <span className="task-duration">
+                                  <Clock size={11} />
+                                  Tarefa do dia
+                                </span>
+                              ) : (
+                                <span className="task-duration">
+                                  <Clock size={11} />
+                                  {startSlot?.start} – {endSlot?.end}
+                                </span>
+                              )}
                               <span
                                 className="cat-badge"
                                 style={{ background: cat.soft, color: cat.color }}

@@ -73,8 +73,8 @@ export function findSlot(id: number): TimeSlot | undefined {
   return TIME_SLOTS.find((s) => s.id === id);
 }
 
-// Slots ocupados por uma tarefa
 export function getOccupiedSlots(startSlotId: number, duration: number): number[] {
+  if (startSlotId === 0) return [];
   const slots: number[] = [];
   for (let i = 0; i < duration; i++) {
     const sId = startSlotId + i;

@@ -31,6 +31,9 @@ export const TaskFormInline: React.FC<TaskFormInlineProps> = ({
   defaultInitialSlot,
 }) => {
   const isEditing = Boolean(editingTask?.id);
+  const [definirHorario, setDefinirHorario] = useState(
+    editingTask ? editingTask.bloco_inicio_id !== 0 : true
+  );
 
   const [titulo, setTitulo] = useState(editingTask?.titulo ?? '');
   const [descricao, setDescricao] = useState(editingTask?.descricao ?? '');
@@ -53,14 +56,14 @@ export const TaskFormInline: React.FC<TaskFormInlineProps> = ({
 
   // Slot inicial: da tarefa em edição, do padrão se livre, ou o primeiro livre
   const fallbackFreeSlot = freeStartSlots[0] ?? TIME_SLOTS[0];
-  const requestedInitialSlot = isEditing
+  const requestedInitialSlot = isEditing && editingTask!.bloco_inicio_id !== 0
     ? findSlot(editingTask!.bloco_inicio_id)
     : TIME_SLOTS.find((s) => s.id === defaultInitialSlot);
   const initialStartSlot =
     requestedInitialSlot && !occupiedSlotsMap.has(requestedInitialSlot.id)
       ? requestedInitialSlot
       : fallbackFreeSlot;
-  const initialEndSlot = isEditing
+  const initialEndSlot = isEditing && editingTask!.bloco_inicio_id !== 0
     ? findSlot(editingTask!.bloco_inicio_id + editingTask!.quantidade_blocos - 1) ??
       initialStartSlot
     : initialStartSlot;
@@ -106,15 +109,15 @@ export const TaskFormInline: React.FC<TaskFormInlineProps> = ({
       return;
     }
 
-    if (hasConflict(blocoInicioId, quantidadeBlocos, existingTasks, editingTask?.id)) {
+    if (definirHorario && hasConflict(blocoInicioId, quantidadeBlocos, existingTasks, editingTask?.id)) {
       setErrorMsg('Esse horário já está reservado. Escolha outro intervalo.');
       return;
     }
 
     const base: Omit<Task, 'id' | 'usuario_id'> = {
       data_agendamento: selectedDate,
-      bloco_inicio_id: blocoInicioId,
-      quantidade_blocos: quantidadeBlocos,
+      bloco_inicio_id: definirHorario ? blocoInicioId : 0,
+      quantidade_blocos: definirHorario ? quantidadeBlocos : 1,
       titulo: cleanTitle,
       descricao: descricao.trim(),
       concluida: editingTask?.concluida ?? false,
@@ -274,84 +277,103 @@ export const TaskFormInline: React.FC<TaskFormInlineProps> = ({
         />
       </div>
 
-      {/* Horários */}
-      <div className="form-row">
-        <div className="form-group">
-          <label>Começa às</label>
-          <div className="time-select-pair">
-            <select
-              value={startHour}
-              onChange={(e) => handleStartHourChange(e.target.value)}
-              className="time-select"
-              aria-label="Hora de início"
-            >
-              {startHoursList.map((h) => (
-                <option key={h} value={h}>{h}h</option>
-              ))}
-            </select>
-            <span className="time-separator">:</span>
-            <select
-              value={startMinute}
-              onChange={(e) => handleStartMinuteChange(e.target.value)}
-              className="time-select"
-              aria-label="Minuto de início"
-            >
-              {startMinutesList.map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="form-group">
-          <label>Termina às</label>
-          <div className="time-select-pair">
-            <select
-              value={activeEndHour}
-              onChange={(e) => handleEndHourChange(e.target.value)}
-              className="time-select"
-              aria-label="Hora de fim"
-            >
-              {endHoursList.map((h) => (
-                <option key={h} value={h}>
-                  {h === '00' ? '00h (meia-noite)' : `${h}h`}
-                </option>
-              ))}
-            </select>
-            <span className="time-separator">:</span>
-            <select
-              value={activeEndMinute}
-              onChange={(e) => setEndMinute(e.target.value)}
-              className="time-select"
-              aria-label="Minuto de fim"
-            >
-              {endMinutesList.map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-          </div>
-        </div>
+      {/* Opção de horário */}
+      <div className="form-group" style={{ marginBottom: '16px' }}>
+        <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}>
+          <input
+            type="checkbox"
+            checked={!definirHorario}
+            onChange={(e) => setDefinirHorario(!e.target.checked)}
+            style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
+          />
+          <span style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-primary)' }}>
+            Tarefa do dia (sem horário específico)
+          </span>
+        </label>
       </div>
+
+      {/* Horários */}
+      {definirHorario && (
+        <div className="form-row">
+          <div className="form-group">
+            <label>Começa às</label>
+            <div className="time-select-pair">
+              <select
+                value={startHour}
+                onChange={(e) => handleStartHourChange(e.target.value)}
+                className="time-select"
+                aria-label="Hora de início"
+              >
+                {startHoursList.map((h) => (
+                  <option key={h} value={h}>{h}h</option>
+                ))}
+              </select>
+              <span className="time-separator">:</span>
+              <select
+                value={startMinute}
+                onChange={(e) => handleStartMinuteChange(e.target.value)}
+                className="time-select"
+                aria-label="Minuto de início"
+              >
+                {startMinutesList.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>Termina às</label>
+            <div className="time-select-pair">
+              <select
+                value={activeEndHour}
+                onChange={(e) => handleEndHourChange(e.target.value)}
+                className="time-select"
+                aria-label="Hora de fim"
+              >
+                {endHoursList.map((h) => (
+                  <option key={h} value={h}>
+                    {h === '00' ? '00h (meia-noite)' : `${h}h`}
+                  </option>
+                ))}
+              </select>
+              <span className="time-separator">:</span>
+              <select
+                value={activeEndMinute}
+                onChange={(e) => setEndMinute(e.target.value)}
+                className="time-select"
+                aria-label="Minuto de fim"
+              >
+                {endMinutesList.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Preview do horário */}
-      <div className="time-preview">
-        <span className="time-preview-range">
-          {startHour}:{startMinute} → {activeEndHour}:{activeEndMinute}
-        </span>
-        <span className="time-preview-duration">
-          {(() => {
-            const toMin = (h: string, m: string) => Number(h) * 60 + Number(m);
-            const startMin = toMin(startHour, startMinute);
-            let endMin = toMin(activeEndHour, activeEndMinute);
-            if (endMin <= startMin) endMin += 24 * 60;
-            const total = endMin - startMin;
-            if (total < 60) return `${total} min`;
-            const h = Math.floor(total / 60);
-            const m = total % 60;
-            return m === 0 ? `${h}h` : `${h}h${String(m).padStart(2, '0')}`;
-          })()}
-        </span>
-      </div>
+      {definirHorario && (
+        <div className="time-preview">
+          <span className="time-preview-range">
+            {startHour}:{startMinute} → {activeEndHour}:{activeEndMinute}
+          </span>
+          <span className="time-preview-duration">
+            {(() => {
+              const toMin = (h: string, m: string) => Number(h) * 60 + Number(m);
+              const startMin = toMin(startHour, startMinute);
+              let endMin = toMin(activeEndHour, activeEndMinute);
+              if (endMin <= startMin) endMin += 24 * 60;
+              const total = endMin - startMin;
+              if (total < 60) return `${total} min`;
+              const h = Math.floor(total / 60);
+              const m = total % 60;
+              return m === 0 ? `${h}h` : `${h}h${String(m).padStart(2, '0')}`;
+            })()}
+          </span>
+        </div>
+      )}
 
       {/* Recorrência (apenas ao criar) */}
       {!isEditing && (
