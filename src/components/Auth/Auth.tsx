@@ -45,11 +45,32 @@ export const Auth: React.FC = () => {
 
       if (data?.user) {
         // Check profile status
-        const { data: perfil, error: perfilErr } = await supabase
+        let { data: perfil, error: perfilErr } = await supabase
           .from('perfis')
           .select('status')
           .eq('id', data.user.id)
-          .single();
+          .maybeSingle();
+
+        if (!perfil && !perfilErr) {
+          // Cria o perfil na hora para contas pré-existentes do Auth
+          const { data: newPerfil, error: insertErr } = await supabase
+            .from('perfis')
+            .insert({
+              id: data.user.id,
+              email: data.user.email,
+              telefone: data.user.user_metadata?.telefone || '',
+              status: 'aprovado',
+              is_admin: false
+            })
+            .select('status')
+            .single();
+
+          if (!insertErr) {
+            perfil = newPerfil;
+          } else {
+            perfilErr = insertErr as any;
+          }
+        }
 
         if (perfilErr) {
           await supabase.auth.signOut();

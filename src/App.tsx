@@ -42,11 +42,30 @@ function App() {
   };
 
   const checkUserProfile = async (userSession: Session) => {
-    const { data: profile } = await supabase
+    let { data: profile } = await supabase
       .from('perfis')
       .select('*')
       .eq('id', userSession.user.id)
-      .single();
+      .maybeSingle();
+
+    if (!profile) {
+      // Cria perfil aprovado automaticamente para quem já tinha conta no Auth
+      const { data: newProfile, error: insertError } = await supabase
+        .from('perfis')
+        .insert({
+          id: userSession.user.id,
+          email: userSession.user.email,
+          telefone: userSession.user.user_metadata?.telefone || '',
+          status: 'aprovado',
+          is_admin: false
+        })
+        .select()
+        .single();
+
+      if (!insertError) {
+        profile = newProfile;
+      }
+    }
 
     const typedProfile = profile as Perfil | null;
 
