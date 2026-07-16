@@ -12,7 +12,6 @@ import {
   getWeekStart,
   parseLocalDate,
   shiftDate,
-  getTaskDurationMinutes,
 } from '../../utils/timeSlots';
 import { TaskFormInline } from '../TaskFormInline/TaskFormInline';
 import {
@@ -27,7 +26,6 @@ import {
   Pencil,
   Plus,
   Trash2,
-  Timer,
   X,
 } from 'lucide-react';
 import './Dashboard.css';
@@ -79,7 +77,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigg
   const [fetchError, setFetchError] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [detailTask, setDetailTask] = useState<Task | null>(null);
-  const [isAndroid] = useState(() => /android/i.test(navigator.userAgent));
 
   const defaultInitialSlot = 9;
   const isToday = selectedDate === getLocalDateString();
@@ -478,19 +475,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigg
                             >
                               <Pencil size={16} />
                             </button>
-                            {isAndroid && (
-                              <button
-                                className="btn-icon"
-                                title={`Timer: ${getTaskDurationMinutes(task.bloco_inicio_id, task.quantidade_blocos)} min`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const sec = getTaskDurationMinutes(task.bloco_inicio_id, task.quantidade_blocos) * 60;
-                                  window.location.href = `intent:#Intent;action=android.intent.action.SET_TIMER;i.android.intent.extra.alarm.LENGTH=${sec};S.android.intent.extra.alarm.MESSAGE=${encodeURIComponent(task.titulo)};end`;
-                                }}
-                              >
-                                <Timer size={16} />
-                              </button>
-                            )}
+
                             {gcalUrl && (
                               <a
                                 href={gcalUrl}
