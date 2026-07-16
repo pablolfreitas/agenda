@@ -479,14 +479,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigg
                               <Pencil size={16} />
                             </button>
                             {isAndroid && (
-                              <a
-                                href={`intent:#Intent;action=android.intent.action.SET_TIMER;i.android.intent.extra.alarm.LENGTH=${getTaskDurationMinutes(task.bloco_inicio_id, task.quantidade_blocos) * 60};S.android.intent.extra.alarm.MESSAGE=${encodeURIComponent(task.titulo)};B.android.intent.extra.alarm.SKIP_UI=false;end`}
+                              <button
                                 className="btn-icon"
                                 title={`Timer: ${getTaskDurationMinutes(task.bloco_inicio_id, task.quantidade_blocos)} min`}
-                                onClick={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const sec = getTaskDurationMinutes(task.bloco_inicio_id, task.quantidade_blocos) * 60;
+                                  window.location.href = `intent:#Intent;action=android.intent.action.SET_TIMER;i.android.intent.extra.alarm.LENGTH=${sec};S.android.intent.extra.alarm.MESSAGE=${encodeURIComponent(task.titulo)};end`;
+                                }}
                               >
                                 <Timer size={16} />
-                              </a>
+                              </button>
                             )}
                             {gcalUrl && (
                               <a

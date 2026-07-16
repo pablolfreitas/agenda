@@ -9,6 +9,7 @@ import {
   hasConflict,
 } from '../../utils/timeSlots';
 import type { Task, Recurrence } from '../../utils/timeSlots';
+import { Timer } from 'lucide-react';
 
 interface TaskFormInlineProps {
   selectedDate: string;
@@ -31,6 +32,7 @@ export const TaskFormInline: React.FC<TaskFormInlineProps> = ({
   defaultInitialSlot,
 }) => {
   const isEditing = Boolean(editingTask?.id);
+  const [isAndroid] = useState(() => /android/i.test(navigator.userAgent));
 
   const [titulo, setTitulo] = useState(editingTask?.titulo ?? '');
   const [descricao, setDescricao] = useState(editingTask?.descricao ?? '');
@@ -376,6 +378,51 @@ export const TaskFormInline: React.FC<TaskFormInlineProps> = ({
             </p>
           )}
         </div>
+      )}
+
+      {isAndroid && (
+        <button
+          type="button"
+          onClick={() => {
+            const toMin = (h: string, m: string) => Number(h) * 60 + Number(m);
+            const startMin = toMin(startHour, startMinute);
+            let endMin = toMin(activeEndHour, activeEndMinute);
+            if (endMin <= startMin) endMin += 24 * 60;
+            const sec = (endMin - startMin) * 60;
+            
+            // Usando intent pura que abre a tela de confirmação no Android
+            const url = `intent:#Intent;action=android.intent.action.SET_TIMER;i.android.intent.extra.alarm.LENGTH=${sec};S.android.intent.extra.alarm.MESSAGE=${encodeURIComponent(titulo || 'Tarefa')};end`;
+            window.location.href = url;
+          }}
+          className="btn-timer-inline"
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            background: 'var(--accent-soft)',
+            color: 'var(--accent)',
+            border: 'none',
+            borderRadius: 'var(--radius-sm)',
+            padding: '12px 16px',
+            fontWeight: 600,
+            fontSize: '0.9rem',
+            cursor: 'pointer',
+            marginTop: '8px',
+            marginBottom: '16px'
+          }}
+        >
+          <Timer size={16} /> Iniciar Timer ({(
+            (() => {
+              const toMin = (h: string, m: string) => Number(h) * 60 + Number(m);
+              const startMin = toMin(startHour, startMinute);
+              let endMin = toMin(activeEndHour, activeEndMinute);
+              if (endMin <= startMin) endMin += 24 * 60;
+              return endMin - startMin;
+            })()
+          )} min) no Celular
+        </button>
       )}
 
       {errorMsg && <div className="message error">{errorMsg}</div>}
