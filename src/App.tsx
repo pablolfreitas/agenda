@@ -117,10 +117,12 @@ function App() {
     setActiveTab('agenda');
   };
 
-  const handlePlusClick = () => {
-    // Increment trigger to communicate event to the active tab component
-    setOpenCreateTrigger((prev) => prev + 1);
+  const handleTabChange = (tab: 'agenda' | 'financas' | 'admin') => {
+    // Reset trigger when switching tabs so components don't auto-open forms
+    setOpenCreateTrigger(0);
+    setActiveTab(tab);
   };
+
 
   const handleAdminStatusUpdated = async () => {
     if (perfil?.is_admin) {
@@ -172,9 +174,8 @@ function App() {
 
           <BottomNav
             activeTab={activeTab}
-            setActiveTab={setActiveTab}
+            setActiveTab={handleTabChange}
             isAdmin={perfil.is_admin}
-            onPlusClick={handlePlusClick}
             pendingCount={pendingUsersCount}
           />
         </div>

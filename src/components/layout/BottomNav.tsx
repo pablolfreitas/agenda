@@ -1,12 +1,11 @@
 import React from 'react';
-import { Calendar, Plus, Wallet, ShieldAlert } from 'lucide-react';
+import { Calendar, Wallet, ShieldAlert } from 'lucide-react';
 import './BottomNav.css';
 
 interface BottomNavProps {
   activeTab: 'agenda' | 'financas' | 'admin';
   setActiveTab: (tab: 'agenda' | 'financas' | 'admin') => void;
   isAdmin: boolean;
-  onPlusClick: () => void;
   pendingCount?: number;
 }
 
@@ -14,7 +13,6 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   activeTab,
   setActiveTab,
   isAdmin,
-  onPlusClick,
   pendingCount = 0,
 }) => {
   return (
@@ -26,13 +24,6 @@ export const BottomNav: React.FC<BottomNavProps> = ({
       >
         <Calendar size={22} />
         <span>Agenda</span>
-      </button>
-
-      <button className="bottom-nav-item create-btn" onClick={onPlusClick} aria-label="Criar Novo Item">
-        <div className="plus-circle">
-          <Plus size={26} />
-        </div>
-        <span>Criar</span>
       </button>
 
       <button
