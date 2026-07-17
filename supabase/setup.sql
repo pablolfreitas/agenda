@@ -455,7 +455,7 @@ BEGIN
     criado_por_email
   ) VALUES (
     p_receptor_id,
-    p_data,
+    p_data::date,
     p_bloco_inicio_id,
     p_quantidade_blocos,
     p_titulo,
