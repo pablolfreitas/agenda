@@ -246,7 +246,7 @@ export const MinhaConta: React.FC<MinhaContaProps> = ({ onClose, toast, confirma
             Conecte-se com amigos pelo e-mail para enviar recados diretamente na agenda uns dos outros (limite de 3 recados enviados por dia).
           </p>
 
-          <form onSubmit={handleSendInvite} style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+          <form onSubmit={handleSendInvite} style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
             <input
               type="email"
               placeholder="E-mail da pessoa"
@@ -254,14 +254,15 @@ export const MinhaConta: React.FC<MinhaContaProps> = ({ onClose, toast, confirma
               onChange={(e) => setNovoEmail(e.target.value)}
               required
               style={{
-                flex: 1,
-                padding: '8px 12px',
+                width: '100%',
+                padding: '10px 12px',
                 border: '1.5px solid var(--border)',
                 borderRadius: 'var(--radius-sm)',
-                fontSize: '0.84rem',
+                fontSize: '0.86rem',
                 background: 'var(--surface-soft)',
                 color: 'var(--text-primary)',
-                outline: 'none'
+                outline: 'none',
+                boxSizing: 'border-box'
               }}
             />
             <button
@@ -270,15 +271,17 @@ export const MinhaConta: React.FC<MinhaContaProps> = ({ onClose, toast, confirma
               className="save-btn"
               style={{
                 margin: 0,
-                padding: '8px 16px',
-                fontSize: '0.82rem',
-                whiteSpace: 'nowrap',
+                width: '100%',
+                padding: '10px 16px',
+                fontSize: '0.86rem',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px'
+                justifyContent: 'center',
+                gap: '6px',
+                boxSizing: 'border-box'
               }}
             >
-              <UserPlus size={14} /> Conectar
+              <UserPlus size={16} /> Enviar Convite de Conexão
             </button>
           </form>
 
