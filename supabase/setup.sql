@@ -469,6 +469,25 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Remove restrições de verificação (check constraints) que limitam o bloco_inicio_id ou quantidade_blocos
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN
+        SELECT conname
+        FROM pg_constraint con
+        INNER JOIN pg_class rel ON rel.oid = con.conrelid
+        INNER JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
+        WHERE nsp.nspname = 'public'
+          AND rel.relname = 'tarefas'
+          AND con.contype = 'c'
+          AND (pg_get_constraintdef(con.oid) ILIKE '%bloco_inicio%' OR pg_get_constraintdef(con.oid) ILIKE '%quantidade_blocos%')
+    LOOP
+        EXECUTE 'ALTER TABLE public.tarefas DROP CONSTRAINT IF EXISTS ' || quote_ident(r.conname) || ';';
+    END LOOP;
+END $$;
+
 -- Realtime para conexões
 ALTER PUBLICATION supabase_realtime ADD TABLE conexoes;
 
