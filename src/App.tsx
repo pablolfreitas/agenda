@@ -156,7 +156,7 @@ function App() {
       {session && perfil ? (
         <div style={{ width: '100%', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
           {activeTab === 'agenda' && (
-            <Dashboard onSignOut={handleSignOut} openCreateTrigger={openCreateTrigger} />
+            <Dashboard onSignOut={handleSignOut} openCreateTrigger={openCreateTrigger} userEmail={perfil.email} />
           )}
 
           {activeTab === 'financas' && (

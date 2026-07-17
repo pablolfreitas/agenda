@@ -18,6 +18,8 @@ export interface Task {
   categoria?: string;      // id em CATEGORIES (padrão: 'pessoal')
   serie_id?: string | null; // agrupa repetições de uma tarefa recorrente
   criado_em?: string;
+  criado_por_id?: string;
+  criado_por_email?: string;
 }
 
 // ────────────────────────────────────────────────────────────

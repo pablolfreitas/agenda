@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { financeService } from '../../services/financeService';
 import { supabase } from '../../services/supabaseClient';
-import { Key, Download, Trash2 } from 'lucide-react';
+import { Key, Download, Trash2, UserPlus } from 'lucide-react';
 
 interface MinhaContaProps {
   onClose: () => void;
@@ -9,11 +9,26 @@ interface MinhaContaProps {
   confirmar: (msg: string, onSim: () => void) => void;
 }
 
+interface Conexao {
+  id: string;
+  solicitante_id: string;
+  solicitante_email: string;
+  receptor_email: string;
+  receptor_id: string | null;
+  status: 'pendente' | 'aceito' | 'bloqueado';
+  criado_em: string;
+}
+
 export const MinhaConta: React.FC<MinhaContaProps> = ({ onClose, toast, confirmar }) => {
   const [novaSenha, setNovaSenha] = useState('');
   const [confirmaSenha, setConfirmaSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
+
+  const [conexoes, setConexoes] = useState<Conexao[]>([]);
+  const [novoEmail, setNovoEmail] = useState('');
+  const [userEmail, setUserEmail] = useState('');
+  const [userId, setUserId] = useState('');
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,6 +53,81 @@ export const MinhaConta: React.FC<MinhaContaProps> = ({ onClose, toast, confirma
       setConfirmaSenha('');
       setShowPasswordForm(false);
     }
+  };
+
+  const fetchConexoes = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      setUserEmail(session.user.email || '');
+      setUserId(session.user.id);
+    }
+    const list = await financeService.getConexoes();
+    setConexoes(list as Conexao[]);
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchConexoes();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [fetchConexoes]);
+
+  const handleSendInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!novoEmail.trim()) return;
+
+    setLoading(true);
+    const res = await financeService.enviarConvite(novoEmail);
+    setLoading(false);
+
+    if (res.ok) {
+      toast('Convite de conexão enviado com sucesso!');
+      setNovoEmail('');
+      fetchConexoes();
+    } else {
+      toast(res.erro || 'Erro ao enviar convite.', 'erro');
+    }
+  };
+
+  const handleAcceptInvite = async (id: string) => {
+    setLoading(true);
+    const res = await financeService.responderConvite(id, 'aceito');
+    setLoading(false);
+
+    if (res.ok) {
+      toast('Conexão aceita! Agora vocês compartilham agendas.');
+      fetchConexoes();
+    } else {
+      toast(res.erro || 'Erro ao aceitar conexão.', 'erro');
+    }
+  };
+
+  const handleRejectInvite = async (id: string) => {
+    setLoading(true);
+    const res = await financeService.responderConvite(id, 'recusado');
+    setLoading(false);
+
+    if (res.ok) {
+      toast('Solicitação recusada/cancelada.');
+      fetchConexoes();
+    } else {
+      toast(res.erro || 'Erro ao responder solicitação.', 'erro');
+    }
+  };
+
+  const handleRemoveConnection = (id: string, email: string) => {
+    confirmar(`Deseja realmente remover a conexão com ${email}? Vocês não poderão mais ver ou enviar recados um para o outro.`, async () => {
+      setLoading(true);
+      const res = await financeService.removerConexao(id);
+      setLoading(false);
+
+      if (res.ok) {
+        toast('Conexão removida.');
+        fetchConexoes();
+      } else {
+        toast(res.erro || 'Erro ao remover conexão.', 'erro');
+      }
+    });
   };
 
   const handleExportData = async () => {
@@ -87,6 +177,14 @@ export const MinhaConta: React.FC<MinhaContaProps> = ({ onClose, toast, confirma
       }
     );
   };
+
+  const incomingInvites = conexoes.filter(
+    (c) => c.receptor_email.toLowerCase() === userEmail.toLowerCase() && c.status === 'pendente'
+  );
+  const outgoingInvites = conexoes.filter(
+    (c) => c.solicitante_id === userId && c.status === 'pendente'
+  );
+  const activeConnections = conexoes.filter((c) => c.status === 'aceito');
 
   return (
     <div className="secondary-page">
@@ -138,6 +236,141 @@ export const MinhaConta: React.FC<MinhaContaProps> = ({ onClose, toast, confirma
             <Key size={16} /> Alterar minha senha
           </button>
         )}
+
+        {/* COMPARTILHAMENTO DE AGENDA */}
+        <div className="finance-section-card card">
+          <span style={{ fontSize: '0.88rem', fontWeight: 700, display: 'block', marginBottom: '8px' }}>
+            Compartilhar Agenda
+          </span>
+          <p className="hint-text" style={{ marginTop: 0, marginBottom: '12px', fontSize: '0.78rem', lineHeight: '1.4' }}>
+            Conecte-se com amigos pelo e-mail para enviar recados diretamente na agenda uns dos outros (limite de 3 recados enviados por dia).
+          </p>
+
+          <form onSubmit={handleSendInvite} style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+            <input
+              type="email"
+              placeholder="E-mail da pessoa"
+              value={novoEmail}
+              onChange={(e) => setNovoEmail(e.target.value)}
+              required
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                border: '1.5px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '0.84rem',
+                background: 'var(--surface-soft)',
+                color: 'var(--text-primary)',
+                outline: 'none'
+              }}
+            />
+            <button
+              type="submit"
+              disabled={loading}
+              className="save-btn"
+              style={{
+                margin: 0,
+                padding: '8px 16px',
+                fontSize: '0.82rem',
+                whiteSpace: 'nowrap',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <UserPlus size={14} /> Conectar
+            </button>
+          </form>
+
+          {/* Solicitações Pendentes (Recebidas) */}
+          {incomingInvites.length > 0 && (
+            <div style={{ marginBottom: '16px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--accent)', display: 'block', marginBottom: '8px' }}>
+                ✉️ Convites Recebidos
+              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {incomingInvites.map((c) => (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface-soft)', padding: '8px 10px', borderRadius: '4px' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-primary)' }}>
+                      {c.solicitante_email}
+                    </span>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        onClick={() => handleAcceptInvite(c.id)}
+                        disabled={loading}
+                        style={{ background: '#166534', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 8px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer' }}
+                      >
+                        Aceitar
+                      </button>
+                      <button
+                        onClick={() => handleRejectInvite(c.id)}
+                        disabled={loading}
+                        style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 8px', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer' }}
+                      >
+                        Recusar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Conexões Ativas */}
+          {activeConnections.length > 0 && (
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px', marginBottom: '12px' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, display: 'block', marginBottom: '8px' }}>
+                👥 Conexões Ativas
+              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {activeConnections.map((c) => {
+                  const amISol = c.solicitante_id === userId;
+                  const friendEmail = amISol ? c.receptor_email : c.solicitante_email;
+                  return (
+                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>
+                        {friendEmail}
+                      </span>
+                      <button
+                        onClick={() => handleRemoveConnection(c.id, friendEmail)}
+                        disabled={loading}
+                        style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.75rem', cursor: 'pointer', padding: '4px', fontWeight: 600 }}
+                        title="Desconectar"
+                      >
+                        Desconectar
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Convites Enviados (Aguardando) */}
+          {outgoingInvites.length > 0 && (
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '8px' }}>
+                ⏳ Convites Enviados (Aguardando)
+              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {outgoingInvites.map((c) => (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                      {c.receptor_email}
+                    </span>
+                    <button
+                      onClick={() => handleRejectInvite(c.id)}
+                      disabled={loading}
+                      style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.74rem', cursor: 'pointer' }}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="finance-section-card card">
           <span style={{ fontSize: '0.88rem', fontWeight: 700, display: 'block', marginBottom: '8px' }}>

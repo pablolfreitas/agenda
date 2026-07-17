@@ -33,6 +33,7 @@ import './Dashboard.css';
 interface DashboardProps {
   onSignOut: () => void;
   openCreateTrigger?: number;
+  userEmail?: string;
 }
 
 function getGreeting(): string {
@@ -68,7 +69,7 @@ function friendlyDbError(msg: string): string {
   return msg;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigger }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigger, userEmail = '' }) => {
   const [selectedDate, setSelectedDate] = useState(getLocalDateString);
   const [weekTasks, setWeekTasks] = useState<Task[]>([]);
   const [formOpen, setFormOpen] = useState(false);
@@ -463,6 +464,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigg
                               >
                                 {cat.label}
                               </span>
+                              {task.criado_por_email && task.criado_por_email.toLowerCase() !== userEmail.toLowerCase() && (
+                                <span
+                                  className="cat-badge"
+                                  style={{ background: 'var(--accent-soft)', color: 'var(--accent)', fontWeight: 600 }}
+                                  title={`Enviado por: ${task.criado_por_email}`}
+                                >
+                                  ✉️ De: {task.criado_por_email.split('@')[0]}
+                                </span>
+                              )}
                               {task.serie_id && (
                                 <span className="serie-badge" title="Tarefa recorrente">
                                   ↻

@@ -698,6 +698,106 @@ class FinanceService {
     if (error) return { ok: false, erro: error.message };
     return { ok: true };
   }
+
+  async getConexoes() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return [];
+
+    const { data, error } = await supabase
+      .from('conexoes')
+      .select('*');
+    
+    if (error) return [];
+    return data;
+  }
+
+  async enviarConvite(receptorEmail: string) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return { ok: false, erro: 'Sessão expirada.' };
+
+    const emailLimpo = receptorEmail.trim().toLowerCase();
+    if (emailLimpo === session.user.email?.toLowerCase()) {
+      return { ok: false, erro: 'Você não pode enviar um convite para si mesmo.' };
+    }
+
+    const { data, error } = await supabase
+      .from('conexoes')
+      .insert({
+        solicitante_id: session.user.id,
+        solicitante_email: session.user.email || '',
+        receptor_email: emailLimpo,
+        status: 'pendente'
+      })
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === '23505') {
+        return { ok: false, erro: 'Já existe uma solicitação ou conexão com este e-mail.' };
+      }
+      return { ok: false, erro: error.message };
+    }
+    return { ok: true, conexao: data };
+  }
+
+  async responderConvite(conexaoId: string, status: 'aceito' | 'bloqueado' | 'recusado') {
+    if (status === 'recusado') {
+      const { error } = await supabase
+        .from('conexoes')
+        .delete()
+        .eq('id', conexaoId);
+      if (error) return { ok: false, erro: error.message };
+      return { ok: true };
+    }
+
+    const { error } = await supabase
+      .from('conexoes')
+      .update({ status })
+      .eq('id', conexaoId);
+
+    if (error) return { ok: false, erro: error.message };
+    return { ok: true };
+  }
+
+  async removerConexao(conexaoId: string) {
+    const { error } = await supabase
+      .from('conexoes')
+      .delete()
+      .eq('id', conexaoId);
+
+    if (error) return { ok: false, erro: error.message };
+    return { ok: true };
+  }
+
+  async criarTarefaCompartilhada(
+    receptorId: string,
+    data: string,
+    blocoInicioId: number,
+    quantidadeBlocos: number,
+    titulo: string,
+    descricao: string,
+    categoria: string
+  ) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return { ok: false, erro: 'Sessão expirada.' };
+
+    const { data: resData, error } = await supabase.rpc('criar_tarefa_compartilhada', {
+      p_receptor_id: receptorId,
+      p_data: data,
+      p_bloco_inicio_id: blocoInicioId,
+      p_quantidade_blocos: quantidadeBlocos,
+      p_titulo: titulo,
+      p_descricao: descricao,
+      p_categoria: categoria,
+      p_remetente_email: session.user.email
+    });
+
+    if (error) return { ok: false, erro: error.message };
+    
+    const result = resData as { ok: boolean; erro?: string; id?: string };
+    if (!result.ok) return { ok: false, erro: result.erro };
+    return { ok: true, id: result.id };
+  }
 }
 
 export const financeService = new FinanceService();

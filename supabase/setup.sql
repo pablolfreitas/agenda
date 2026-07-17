@@ -352,3 +352,123 @@ ALTER PUBLICATION supabase_realtime ADD TABLE gastos_fixos;
 ALTER PUBLICATION supabase_realtime ADD TABLE cartoes_pagos;
 ALTER PUBLICATION supabase_realtime ADD TABLE perfis;
 ALTER PUBLICATION supabase_realtime ADD TABLE tarefas;
+
+-- ==========================================
+-- Compartilhamento de Agenda e Conexões
+-- ==========================================
+
+CREATE TABLE IF NOT EXISTS public.conexoes (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  solicitante_id    UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  solicitante_email TEXT NOT NULL,
+  receptor_email    TEXT NOT NULL,
+  receptor_id       UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  status            TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'aceito', 'bloqueado')),
+  criado_em         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(solicitante_id, receptor_email)
+);
+
+-- Gatilho para preencher receptor_id caso o usuário já exista (ou se cadastre no futuro)
+CREATE OR REPLACE FUNCTION public.vincular_receptor_conexao()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.receptor_id := (SELECT id FROM auth.users WHERE email = NEW.receptor_email);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE TRIGGER tg_vincular_receptor_conexao
+BEFORE INSERT OR UPDATE ON public.conexoes
+FOR EACH ROW EXECUTE FUNCTION public.vincular_receptor_conexao();
+
+-- Adiciona informações do remetente nas tarefas para sabermos quem enviou o recado
+ALTER TABLE public.tarefas ADD COLUMN IF NOT EXISTS criado_por_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE public.tarefas ADD COLUMN IF NOT EXISTS criado_por_email TEXT;
+
+-- RLS para conexões
+ALTER TABLE public.conexoes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Usuário vê suas conexões" ON public.conexoes
+  FOR SELECT USING (auth.uid() = solicitante_id OR auth.uid() = receptor_id);
+
+CREATE POLICY "Usuário cria conexões" ON public.conexoes
+  FOR INSERT WITH CHECK (auth.uid() = solicitante_id);
+
+CREATE POLICY "Usuário atualiza conexões" ON public.conexoes
+  FOR UPDATE USING (auth.uid() = receptor_id);
+
+CREATE POLICY "Usuário deleta conexões" ON public.conexoes
+  FOR DELETE USING (auth.uid() = solicitante_id OR auth.uid() = receptor_id);
+
+-- RPC para criar tarefa compartilhada com limite de 3 por dia
+CREATE OR REPLACE FUNCTION public.criar_tarefa_compartilhada(
+  p_receptor_id UUID,
+  p_data TEXT,
+  p_bloco_inicio_id INTEGER,
+  p_quantidade_blocos INTEGER,
+  p_titulo TEXT,
+  p_descricao TEXT,
+  p_categoria TEXT,
+  p_remetente_email TEXT
+)
+RETURNS JSON AS $$
+DECLARE
+  v_conexao_existe BOOLEAN;
+  v_enviados_hoje INTEGER;
+  v_new_id UUID;
+BEGIN
+  -- 1. Verifica se há uma conexão aceita ativa
+  SELECT EXISTS (
+    SELECT 1 FROM public.conexoes
+    WHERE (
+      (solicitante_id = auth.uid() AND receptor_id = p_receptor_id)
+      OR
+      (solicitante_id = p_receptor_id AND receptor_id = auth.uid())
+    ) AND status = 'aceito'
+  ) INTO v_conexao_existe;
+
+  IF NOT v_conexao_existe THEN
+    RETURN json_build_object('ok', false, 'erro', 'Você precisa ter uma conexão aceita com este usuário para enviar lembretes.');
+  END IF;
+
+  -- 2. Verifica se o limite de 3 enviados hoje foi atingido
+  SELECT count(*) FROM public.tarefas
+  WHERE criado_por_id = auth.uid()
+    AND usuario_id != auth.uid()
+    AND criado_em::date = now()::date
+  INTO v_enviados_hoje;
+
+  IF v_enviados_hoje >= 3 THEN
+    RETURN json_build_object('ok', false, 'erro', 'Limite de 3 lembretes enviados por dia atingido.');
+  END IF;
+
+  -- 3. Insere a tarefa na agenda do destinatário
+  INSERT INTO public.tarefas (
+    usuario_id,
+    data_agendamento,
+    bloco_inicio_id,
+    quantidade_blocos,
+    titulo,
+    descricao,
+    categoria,
+    criado_por_id,
+    criado_por_email
+  ) VALUES (
+    p_receptor_id,
+    p_data,
+    p_bloco_inicio_id,
+    p_quantidade_blocos,
+    p_titulo,
+    p_descricao,
+    p_categoria,
+    auth.uid(),
+    p_remetente_email
+  ) RETURNING id INTO v_new_id;
+
+  RETURN json_build_object('ok', true, 'id', v_new_id);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Realtime para conexões
+ALTER PUBLICATION supabase_realtime ADD TABLE conexoes;
+

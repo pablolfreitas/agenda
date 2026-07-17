@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   TIME_SLOTS,
   CATEGORIES,
@@ -9,6 +9,8 @@ import {
   hasConflict,
 } from '../../utils/timeSlots';
 import type { Task, Recurrence } from '../../utils/timeSlots';
+import { supabase } from '../../services/supabaseClient';
+import { financeService } from '../../services/financeService';
 
 interface TaskFormInlineProps {
   selectedDate: string;
@@ -34,6 +36,45 @@ export const TaskFormInline: React.FC<TaskFormInlineProps> = ({
   const [definirHorario, setDefinirHorario] = useState(
     editingTask ? editingTask.bloco_inicio_id !== 0 : true
   );
+
+  interface ConnectionFriend {
+    id: string;
+    email: string;
+  }
+
+  const [activeFriends, setActiveFriends] = useState<ConnectionFriend[]>([]);
+  const [agendaDestino, setAgendaDestino] = useState<'minha' | string>('minha');
+
+  interface ConexaoDb {
+    id: string;
+    solicitante_id: string;
+    solicitante_email: string;
+    receptor_email: string;
+    receptor_id: string | null;
+    status: 'pendente' | 'aceito' | 'bloqueado';
+  }
+
+  useEffect(() => {
+    const fetchFriends = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+      const currentId = session.user.id;
+
+      const list = (await financeService.getConexoes()) as ConexaoDb[];
+      const accepted = list.filter((c) => c.status === 'aceito');
+      const friends: ConnectionFriend[] = accepted.map((c) => {
+        const isSol = c.solicitante_id === currentId;
+        return {
+          id: isSol ? c.receptor_id || '' : c.solicitante_id,
+          email: isSol ? c.receptor_email : c.solicitante_email
+        };
+      }).filter(f => f.id !== '');
+
+      setActiveFriends(friends);
+    };
+
+    fetchFriends();
+  }, []);
 
   const [titulo, setTitulo] = useState(editingTask?.titulo ?? '');
   const [descricao, setDescricao] = useState(editingTask?.descricao ?? '');
@@ -127,16 +168,39 @@ export const TaskFormInline: React.FC<TaskFormInlineProps> = ({
 
     setLoading(true);
     try {
-      if (isEditing && editingTask?.id) {
-        await onUpdate(editingTask.id, base);
-      } else if (recorrencia === 'nenhuma') {
-        await onCreate([base]);
+      if (agendaDestino === 'minha') {
+        if (isEditing && editingTask?.id) {
+          await onUpdate(editingTask.id, base);
+        } else if (recorrencia === 'nenhuma') {
+          await onCreate([base]);
+        } else {
+          const serieId = crypto.randomUUID();
+          const dates = getRecurrenceDates(selectedDate, recorrencia);
+          await onCreate(
+            dates.map((d) => ({ ...base, data_agendamento: d, serie_id: serieId }))
+          );
+        }
       } else {
-        const serieId = crypto.randomUUID();
-        const dates = getRecurrenceDates(selectedDate, recorrencia);
-        await onCreate(
-          dates.map((d) => ({ ...base, data_agendamento: d, serie_id: serieId }))
+        if (isEditing) {
+          throw new Error('Não é possível mover tarefas existentes para a agenda de amigos.');
+        }
+        if (recorrencia !== 'nenhuma') {
+          throw new Error('Não é possível definir recorrência para lembretes enviados.');
+        }
+        const res = await financeService.criarTarefaCompartilhada(
+          agendaDestino,
+          selectedDate,
+          base.bloco_inicio_id,
+          base.quantidade_blocos,
+          base.titulo,
+          base.descricao || '',
+          base.categoria || 'pessoal'
         );
+        if (!res.ok) {
+          throw new Error(res.erro || 'Erro ao enviar lembrete.');
+        }
+        alert('Lembrete enviado com sucesso para a agenda do seu amigo!');
+        onCancel();
       }
       setTitulo('');
       setDescricao('');
@@ -238,6 +302,27 @@ export const TaskFormInline: React.FC<TaskFormInlineProps> = ({
           onChange={(e) => setTitulo(e.target.value)}
         />
       </div>
+
+      {/* Onde salvar esta tarefa? (Apenas ao criar) */}
+      {!isEditing && activeFriends.length > 0 && (
+        <div className="form-group">
+          <label htmlFor="inline-destino">Onde salvar esta tarefa?</label>
+          <select
+            id="inline-destino"
+            value={agendaDestino}
+            onChange={(e) => setAgendaDestino(e.target.value)}
+            className="time-select"
+            style={{ width: '100%' }}
+          >
+            <option value="minha">Minha Agenda</option>
+            {activeFriends.map((f) => (
+              <option key={f.id} value={f.id}>
+                Agenda de: {f.email}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Categoria */}
       <div className="form-group">
