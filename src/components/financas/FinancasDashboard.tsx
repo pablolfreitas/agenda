@@ -7,7 +7,8 @@ import { GerenciarCartoes } from './GerenciarCartoes';
 import { GastosFixos } from './GastosFixos';
 import { OutrosGastos } from './OutrosGastos';
 import { MinhaConta } from './MinhaConta';
-import { Eye, EyeOff, Settings, Lock, Sun, Moon } from 'lucide-react';
+import { Historico } from './Historico';
+import { Eye, EyeOff, Settings, Lock, Sun, Moon, LineChart } from 'lucide-react';
 import './FinancasDashboard.css';
 
 interface FinancasDashboardProps {
@@ -21,7 +22,7 @@ export const FinancasDashboard: React.FC<FinancasDashboardProps> = ({ openCreate
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
 
   // Subpages overlays
-  const [subPage, setSubPage] = useState<'rendas' | 'card-detalhe' | 'gerenciar-cartoes' | 'gastos-fixos' | 'outros-gastos' | 'minha-conta' | null>(null);
+  const [subPage, setSubPage] = useState<'rendas' | 'card-detalhe' | 'gerenciar-cartoes' | 'gastos-fixos' | 'outros-gastos' | 'minha-conta' | 'historico' | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [selectedCardNome, setSelectedCardNome] = useState('');
 
@@ -157,6 +158,9 @@ export const FinancasDashboard: React.FC<FinancasDashboardProps> = ({ openCreate
               </option>
             ))}
           </select>
+          <button className="btn-icon" onClick={() => setSubPage('historico')} title="Histórico e Projeções">
+            <LineChart size={16} />
+          </button>
           <button className="btn-icon" onClick={toggleTheme} title="Alterar Tema">
             {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
           </button>
@@ -365,6 +369,10 @@ export const FinancasDashboard: React.FC<FinancasDashboardProps> = ({ openCreate
           toast={triggerToast}
           confirmar={triggerConfirm}
         />
+      )}
+
+      {subPage === 'historico' && (
+        <Historico onClose={() => setSubPage(null)} />
       )}
     </div>
   );

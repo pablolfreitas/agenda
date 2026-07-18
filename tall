@@ -1,0 +1,192 @@
+[1mdiff --git a/src/components/financas/FinancasDashboard.tsx b/src/components/financas/FinancasDashboard.tsx[m
+[1mindex eb07193..673564e 100644[m
+[1m--- a/src/components/financas/FinancasDashboard.tsx[m
+[1m+++ b/src/components/financas/FinancasDashboard.tsx[m
+[36m@@ -7,7 +7,8 @@[m [mimport { GerenciarCartoes } from './GerenciarCartoes';[m
+ import { GastosFixos } from './GastosFixos';[m
+ import { OutrosGastos } from './OutrosGastos';[m
+ import { MinhaConta } from './MinhaConta';[m
+[31m-import { Eye, EyeOff, Settings, Lock, Sun, Moon } from 'lucide-react';[m
+[32m+[m[32mimport { Historico } from './Historico';[m
+[32m+[m[32mimport { Eye, EyeOff, Settings, Lock, Sun, Moon, LineChart } from 'lucide-react';[m
+ import './FinancasDashboard.css';[m
+ [m
+ interface FinancasDashboardProps {[m
+[36m@@ -21,7 +22,7 @@[m [mexport const FinancasDashboard: React.FC<FinancasDashboardProps> = ({ openCreate[m
+   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');[m
+ [m
+   // Subpages overlays[m
+[31m-  const [subPage, setSubPage] = useState<'rendas' | 'card-detalhe' | 'gerenciar-cartoes' | 'gastos-fixos' | 'outros-gastos' | 'minha-conta' | null>(null);[m
+[32m+[m[32m  const [subPage, setSubPage] = useState<'rendas' | 'card-detalhe' | 'gerenciar-cartoes' | 'gastos-fixos' | 'outros-gastos' | 'minha-conta' | 'historico' | null>(null);[m
+   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);[m
+   const [selectedCardNome, setSelectedCardNome] = useState('');[m
+ [m
+[36m@@ -157,6 +158,9 @@[m [mexport const FinancasDashboard: React.FC<FinancasDashboardProps> = ({ openCreate[m
+               </option>[m
+             ))}[m
+           </select>[m
+[32m+[m[32m          <button className="btn-icon" onClick={() => setSubPage('historico')} title="Histórico e Projeções">[m
+[32m+[m[32m            <LineChart size={16} />[m
+[32m+[m[32m          </button>[m
+           <button className="btn-icon" onClick={toggleTheme} title="Alterar Tema">[m
+             {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}[m
+           </button>[m
+[36m@@ -366,6 +370,10 @@[m [mexport const FinancasDashboard: React.FC<FinancasDashboardProps> = ({ openCreate[m
+           confirmar={triggerConfirm}[m
+         />[m
+       )}[m
+[32m+[m
+[32m+[m[32m      {subPage === 'historico' && ([m
+[32m+[m[32m        <Historico onClose={() => setSubPage(null)} />[m
+[32m+[m[32m      )}[m
+     </div>[m
+   );[m
+ };[m
+[1mdiff --git a/src/services/financeService.ts b/src/services/financeService.ts[m
+[1mindex 5e65107..336b924 100644[m
+[1m--- a/src/services/financeService.ts[m
+[1m+++ b/src/services/financeService.ts[m
+[36m@@ -769,6 +769,143 @@[m [mclass FinanceService {[m
+     return { ok: true };[m
+   }[m
+ [m
+[32m+[m[32m  /**[m
+[32m+[m[32m   * Retorna um retrospecto mensal (somente leitura) dos últimos `quantidadeMeses`,[m
+[32m+[m[32m   * incluindo o mês atual. Não cria nem altera nenhum registro no banco —[m
+[32m+[m[32m   * diferente de calcularTotais/garantirRendaMes, que gravam uma linha de[m
+[32m+[m[32m   * renda caso o mês ainda não exista.[m
+[32m+[m[32m   */[m
+[32m+[m[32m  async getHistoricoMeses(quantidadeMeses: number = 6): Promise<{[m
+[32m+[m[32m    mesAno: string;[m
+[32m+[m[32m    label: string;[m
+[32m+[m[32m    rendaTotal: number;[m
+[32m+[m[32m    gastosCartoes: number;[m
+[32m+[m[32m    gastosFixos: number;[m
+[32m+[m[32m    gastosOutros: number;[m
+[32m+[m[32m    gastosTotais: number;[m
+[32m+[m[32m    saldo: number;[m
+[32m+[m[32m  }[]> {[m
+[32m+[m[32m    try {[m
+[32m+[m[32m      const sessao = await this.getSessao();[m
+[32m+[m[32m      if (!sessao) return [];[m
+[32m+[m
+[32m+[m[32m      const hoje = new Date();[m
+[32m+[m[32m      const meses: string[] = [];[m
+[32m+[m[32m      for (let i = quantidadeMeses - 1; i >= 0; i--) {[m
+[32m+[m[32m        const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);[m
+[32m+[m[32m        meses.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);[m
+[32m+[m[32m      }[m
+[32m+[m
+[32m+[m[32m      const mesMaisAntigo = meses[0];[m
+[32m+[m
+[32m+[m[32m      const [rendasRes, transacoesRes, gastosFixosRes, outrosGastosRes] = await Promise.all([[m
+[32m+[m[32m        supabase[m
+[32m+[m[32m          .from('rendas')[m
+[32m+[m[32m          .select('mes_ano, salario, decimo, premio, outros')[m
+[32m+[m[32m          .eq('user_id', sessao.user.id)[m
+[32m+[m[32m          .gte('mes_ano', mesMaisAntigo),[m
+[32m+[m[32m        supabase[m
+[32m+[m[32m          .from('transacoes')[m
+[32m+[m[32m          .select('mes_ano, valor')[m
+[32m+[m[32m          .eq('user_id', sessao.user.id)[m
+[32m+[m[32m          .gte('mes_ano', mesMaisAntigo),[m
+[32m+[m[32m        supabase[m
+[32m+[m[32m          .from('gastos_fixos')[m
+[32m+[m[32m          .select('mes_ano, valor')[m
+[32m+[m[32m          .eq('user_id', sessao.user.id)[m
+[32m+[m[32m          .gte('mes_ano', mesMaisAntigo),[m
+[32m+[m[32m        supabase[m
+[32m+[m[32m          .from('outros_gastos')[m
+[32m+[m[32m          .select('mes_ano, valor')[m
+[32m+[m[32m          .eq('user_id', sessao.user.id)[m
+[32m+[m[32m          .gte('mes_ano', mesMaisAntigo),[m
+[32m+[m[32m      ]);[m
+[32m+[m
+[32m+[m[32m      const rendas = rendasRes.data || [];[m
+[32m+[m[32m      const transacoes = transacoesRes.data || [];[m
+[32m+[m[32m      const gastosFixos = gastosFixosRes.data || [];[m
+[32m+[m[32m      const outrosGastos = outrosGastosRes.data || [];[m
+[32m+[m
+[32m+[m[32m      return meses.map((mesAno) => {[m
+[32m+[m[32m        const renda = rendas.find((r) => r.mes_ano === mesAno);[m
+[32m+[m[32m        const rendaTotal = renda[m
+[32m+[m[32m          ? Number(renda.salario || 0) + Number(renda.decimo || 0) + Number(renda.premio || 0) + Number(renda.outros || 0)[m
+[32m+[m[32m          : 0;[m
+[32m+[m
+[32m+[m[32m        const gastosCartoes = transacoes[m
+[32m+[m[32m          .filter((t) => t.mes_ano === mesAno)[m
+[32m+[m[32m          .reduce((s, t) => s + Number(t.valor), 0);[m
+[32m+[m[32m        const gastosFixosTot = gastosFixos[m
+[32m+[m[32m          .filter((g) => g.mes_ano === mesAno)[m
+[32m+[m[32m          .reduce((s, g) => s + Number(g.valor), 0);[m
+[32m+[m[32m        const gastosOutrosTot = outrosGastos[m
+[32m+[m[32m          .filter((g) => g.mes_ano === mesAno)[m
+[32m+[m[32m          .reduce((s, g) => s + Number(g.valor), 0);[m
+[32m+[m
+[32m+[m[32m        const gastosTotais = gastosCartoes + gastosFixosTot + gastosOutrosTot;[m
+[32m+[m[32m        const [ano, mes] = mesAno.split('-').map(Number);[m
+[32m+[m[32m        const label = new Date(ano, mes - 1, 1).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });[m
+[32m+[m
+[32m+[m[32m        return {[m
+[32m+[m[32m          mesAno,[m
+[32m+[m[32m          label,[m
+[32m+[m[32m          rendaTotal,[m
+[32m+[m[32m          gastosCartoes,[m
+[32m+[m[32m          gastosFixos: gastosFixosTot,[m
+[32m+[m[32m          gastosOutros: gastosOutrosTot,[m
+[32m+[m[32m          gastosTotais,[m
+[32m+[m[32m          saldo: rendaTotal - gastosTotais,[m
+[32m+[m[32m        };[m
+[32m+[m[32m      });[m
+[32m+[m[32m    } catch (e) {[m
+[32m+[m[32m      console.error('[FinanceService] getHistoricoMeses:', e);[m
+[32m+[m[32m      return [];[m
+[32m+[m[32m    }[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  /**[m
+[32m+[m[32m   * Soma, por mês futuro, o valor das parcelas de cartão já lançadas[m
+[32m+[m[32m   * (comprometidas) a partir do mês atual (inclusive). Somente leitura.[m
+[32m+[m[32m   */[m
+[32m+[m[32m  async getParcelasFuturas(): Promise<{[m
+[32m+[m[32m    mesAno: string;[m
+[32m+[m[32m    label: string;[m
+[32m+[m[32m    total: number;[m
+[32m+[m[32m  }[]> {[m
+[32m+[m[32m    try {[m
+[32m+[m[32m      const sessao = await this.getSessao();[m
+[32m+[m[32m      if (!sessao) return [];[m
+[32m+[m
+[32m+[m[32m      const hoje = new Date();[m
+[32m+[m[32m      const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;[m
+[32m+[m
+[32m+[m[32m      const { data, error } = await supabase[m
+[32m+[m[32m        .from('transacoes')[m
+[32m+[m[32m        .select('mes_ano, valor')[m
+[32m+[m[32m        .eq('user_id', sessao.user.id)[m
+[32m+[m[32m        .gte('mes_ano', mesAtual)[m
+[32m+[m[32m        .order('mes_ano', { ascending: true });[m
+[32m+[m
+[32m+[m[32m      if (error) throw error;[m
+[32m+[m
+[32m+[m[32m      const porMes = new Map<string, number>();[m
+[32m+[m[32m      (data || []).forEach((t) => {[m
+[32m+[m[32m        porMes.set(t.mes_ano, (porMes.get(t.mes_ano) || 0) + Number(t.valor));[m
+[32m+[m[32m      });[m
+[32m+[m
+[32m+[m[32m      return Array.from(porMes.entries())[m
+[32m+[m[32m        .sort(([a], [b]) => a.localeCompare(b))[m
+[32m+[m[32m        .map(([mesAno, total]) => {[m
+[32m+[m[32m          const [ano, mes] = mesAno.split('-').map(Number);[m
+[32m+[m[32m          const label = new Date(ano, mes - 1, 1).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });[m
+[32m+[m[32m          return { mesAno, label, total };[m
+[32m+[m[32m        });[m
+[32m+[m[32m    } catch (e) {[m
+[32m+[m[32m      console.error('[FinanceService] getParcelasFuturas:', e);[m
+[32m+[m[32m      return [];[m
+[32m+[m[32m    }[m
+[32m+[m[32m  }[m
+[32m+[m
+   async criarTarefaCompartilhada([m
+     receptorId: string,[m
+     data: string,[m
