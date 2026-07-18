@@ -335,7 +335,7 @@ class FinanceService {
           va_gasto: r.va_gasto ?? 0,
           va_restante: vaRestante,
           atualizado_em: new Date().toISOString(),
-        });
+        }, { onConflict: 'user_id,mes_ano' });
       if (error) throw error;
       return { ok: true };
     } catch (e: any) {
