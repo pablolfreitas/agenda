@@ -12,6 +12,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
   margin-bottom: 20px;
   padding: 8px 4px;
 }
@@ -21,32 +22,36 @@
   font-size: 1.6rem;
   color: var(--text-primary);
   font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 1;
 }
 
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .month-selector {
   background: var(--surface);
   border: 1px solid var(--border);
-  padding: 6px 10px;
+  padding: 6px 8px;
   border-radius: 12px;
-  font-size: 0.8rem;
+  font-size: 0.74rem;
   font-weight: 600;
   color: var(--text-primary);
   outline: none;
   cursor: pointer;
   box-shadow: var(--shadow-card);
+  max-width: 108px;
 }
 
 .btn-icon {
   background: var(--surface);
   border: 1px solid var(--border);
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -56,6 +61,7 @@
   box-shadow: var(--shadow-card);
   transition: transform 0.2s, background-color 0.2s;
   padding: 0;
+  flex-shrink: 0;
 }
 
 .btn-icon:hover {

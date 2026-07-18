@@ -179,12 +179,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigg
     if (task.gasto_fixo_id) {
       financeService.sincronizarGastoFixoDaTarefa(task.gasto_fixo_id, novoStatus);
     }
+    if (task.cartao_id) {
+      financeService.sincronizarCartaoPagoDaTarefa(task.cartao_id, task.data_agendamento, novoStatus);
+    }
   };
 
   const handleDeleteTask = async (task: Task) => {
     if (!task.id) return;
     const msg = task.gasto_fixo_id
       ? 'Esta tarefa é gerada automaticamente por um gasto fixo. Excluí-la aqui não apaga o gasto — apenas remove o lembrete da agenda. Deseja continuar?'
+      : task.cartao_id
+      ? 'Esta tarefa é o lembrete de vencimento de um cartão. Excluí-la aqui não afeta a fatura — apenas remove o lembrete da agenda. Deseja continuar?'
       : 'Deseja realmente excluir esta tarefa?';
     if (!window.confirm(msg)) return;
 
@@ -492,6 +497,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigg
                               {task.gasto_fixo_id && (
                                 <span className="serie-badge" title="Vinculada a um gasto fixo">
                                   💰
+                                </span>
+                              )}
+                              {task.cartao_id && (
+                                <span className="serie-badge" title="Vencimento de fatura de cartão">
+                                  💳
                                 </span>
                               )}
                             </span>

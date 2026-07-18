@@ -69,6 +69,7 @@ export const FinancasDashboard: React.FC<FinancasDashboardProps> = ({ openCreate
   const fetchDados = useCallback(async () => {
     const t = await financeService.calcularTotais(mesAno);
     setTotais(t);
+    return t;
   }, [mesAno]);
 
   useEffect(() => {
@@ -85,6 +86,31 @@ export const FinancasDashboard: React.FC<FinancasDashboardProps> = ({ openCreate
     });
     return () => unsub();
   }, [fetchDados]);
+
+  // Sincroniza os lembretes de vencimento de cartão na agenda apenas quando
+  // o mês selecionado muda — evita reescrever a tarefa a cada atualização
+  // em tempo real (ex: cada compra nova no cartão).
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      const cartoes = await financeService.getCartoes();
+      const comVencimento = cartoes.filter((c) => c.dia_vencimento);
+      if (comVencimento.length === 0) return;
+
+      const t = await financeService.calcularTotais(mesAno);
+      if (!t) return;
+
+      for (const c of comVencimento) {
+        const totalCartao = t.porCartao.find((pc) => pc.id === c.id);
+        await financeService.sincronizarVencimentoCartao(
+          c,
+          mesAno,
+          totalCartao?.total ?? 0,
+          totalCartao?.pago ?? false
+        );
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [mesAno]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
