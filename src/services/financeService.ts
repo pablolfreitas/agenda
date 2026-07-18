@@ -769,6 +769,143 @@ class FinanceService {
     return { ok: true };
   }
 
+  /**
+   * Retorna um retrospecto mensal (somente leitura) dos últimos `quantidadeMeses`,
+   * incluindo o mês atual. Não cria nem altera nenhum registro no banco —
+   * diferente de calcularTotais/garantirRendaMes, que gravam uma linha de
+   * renda caso o mês ainda não exista.
+   */
+  async getHistoricoMeses(quantidadeMeses: number = 6): Promise<{
+    mesAno: string;
+    label: string;
+    rendaTotal: number;
+    gastosCartoes: number;
+    gastosFixos: number;
+    gastosOutros: number;
+    gastosTotais: number;
+    saldo: number;
+  }[]> {
+    try {
+      const sessao = await this.getSessao();
+      if (!sessao) return [];
+
+      const hoje = new Date();
+      const meses: string[] = [];
+      for (let i = quantidadeMeses - 1; i >= 0; i--) {
+        const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+        meses.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+      }
+
+      const mesMaisAntigo = meses[0];
+
+      const [rendasRes, transacoesRes, gastosFixosRes, outrosGastosRes] = await Promise.all([
+        supabase
+          .from('rendas')
+          .select('mes_ano, salario, decimo, premio, outros')
+          .eq('user_id', sessao.user.id)
+          .gte('mes_ano', mesMaisAntigo),
+        supabase
+          .from('transacoes')
+          .select('mes_ano, valor')
+          .eq('user_id', sessao.user.id)
+          .gte('mes_ano', mesMaisAntigo),
+        supabase
+          .from('gastos_fixos')
+          .select('mes_ano, valor')
+          .eq('user_id', sessao.user.id)
+          .gte('mes_ano', mesMaisAntigo),
+        supabase
+          .from('outros_gastos')
+          .select('mes_ano, valor')
+          .eq('user_id', sessao.user.id)
+          .gte('mes_ano', mesMaisAntigo),
+      ]);
+
+      const rendas = rendasRes.data || [];
+      const transacoes = transacoesRes.data || [];
+      const gastosFixos = gastosFixosRes.data || [];
+      const outrosGastos = outrosGastosRes.data || [];
+
+      return meses.map((mesAno) => {
+        const renda = rendas.find((r) => r.mes_ano === mesAno);
+        const rendaTotal = renda
+          ? Number(renda.salario || 0) + Number(renda.decimo || 0) + Number(renda.premio || 0) + Number(renda.outros || 0)
+          : 0;
+
+        const gastosCartoes = transacoes
+          .filter((t) => t.mes_ano === mesAno)
+          .reduce((s, t) => s + Number(t.valor), 0);
+        const gastosFixosTot = gastosFixos
+          .filter((g) => g.mes_ano === mesAno)
+          .reduce((s, g) => s + Number(g.valor), 0);
+        const gastosOutrosTot = outrosGastos
+          .filter((g) => g.mes_ano === mesAno)
+          .reduce((s, g) => s + Number(g.valor), 0);
+
+        const gastosTotais = gastosCartoes + gastosFixosTot + gastosOutrosTot;
+        const [ano, mes] = mesAno.split('-').map(Number);
+        const label = new Date(ano, mes - 1, 1).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+
+        return {
+          mesAno,
+          label,
+          rendaTotal,
+          gastosCartoes,
+          gastosFixos: gastosFixosTot,
+          gastosOutros: gastosOutrosTot,
+          gastosTotais,
+          saldo: rendaTotal - gastosTotais,
+        };
+      });
+    } catch (e) {
+      console.error('[FinanceService] getHistoricoMeses:', e);
+      return [];
+    }
+  }
+
+  /**
+   * Soma, por mês futuro, o valor das parcelas de cartão já lançadas
+   * (comprometidas) a partir do mês atual (inclusive). Somente leitura.
+   */
+  async getParcelasFuturas(): Promise<{
+    mesAno: string;
+    label: string;
+    total: number;
+  }[]> {
+    try {
+      const sessao = await this.getSessao();
+      if (!sessao) return [];
+
+      const hoje = new Date();
+      const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+
+      const { data, error } = await supabase
+        .from('transacoes')
+        .select('mes_ano, valor')
+        .eq('user_id', sessao.user.id)
+        .gte('mes_ano', mesAtual)
+        .order('mes_ano', { ascending: true });
+
+      if (error) throw error;
+
+      const porMes = new Map<string, number>();
+      (data || []).forEach((t) => {
+        porMes.set(t.mes_ano, (porMes.get(t.mes_ano) || 0) + Number(t.valor));
+      });
+
+      return Array.from(porMes.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([mesAno, total]) => {
+          const [ano, mes] = mesAno.split('-').map(Number);
+          const label = new Date(ano, mes - 1, 1).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+          return { mesAno, label, total };
+        });
+    } catch (e) {
+      console.error('[FinanceService] getParcelasFuturas:', e);
+      return [];
+    }
+  }
+
   async criarTarefaCompartilhada(
     receptorId: string,
     data: string,
