@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../../services/supabaseClient';
+import { financeService } from '../../services/financeService';
 import type { Task } from '../../utils/timeSlots';
 import {
   CATEGORIES,
@@ -166,16 +167,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigg
     setWeekTasks((prev) =>
       prev.map((t) => (t.id === task.id ? { ...t, concluida: !t.concluida } : t))
     );
+    const novoStatus = !task.concluida;
     const { error } = await supabase
       .from('tarefas')
-      .update({ concluida: !task.concluida })
+      .update({ concluida: novoStatus })
       .eq('id', task.id);
-    if (error) fetchWeek(); // desfaz em caso de falha
+    if (error) {
+      fetchWeek(); // desfaz em caso de falha
+      return;
+    }
+    if (task.gasto_fixo_id) {
+      financeService.sincronizarGastoFixoDaTarefa(task.gasto_fixo_id, novoStatus);
+    }
   };
 
   const handleDeleteTask = async (task: Task) => {
     if (!task.id) return;
-    if (!window.confirm('Deseja realmente excluir esta tarefa?')) return;
+    const msg = task.gasto_fixo_id
+      ? 'Esta tarefa é gerada automaticamente por um gasto fixo. Excluí-la aqui não apaga o gasto — apenas remove o lembrete da agenda. Deseja continuar?'
+      : 'Deseja realmente excluir esta tarefa?';
+    if (!window.confirm(msg)) return;
 
     if (
       task.serie_id &&
@@ -476,6 +487,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigg
                               {task.serie_id && (
                                 <span className="serie-badge" title="Tarefa recorrente">
                                   ↻
+                                </span>
+                              )}
+                              {task.gasto_fixo_id && (
+                                <span className="serie-badge" title="Vinculada a um gasto fixo">
+                                  💰
                                 </span>
                               )}
                             </span>

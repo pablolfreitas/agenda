@@ -17,6 +17,7 @@ export interface Task {
   concluida: boolean;
   categoria?: string;      // id em CATEGORIES (padrão: 'pessoal')
   serie_id?: string | null; // agrupa repetições de uma tarefa recorrente
+  gasto_fixo_id?: string | null; // vincula a um gasto fixo, quando gerada automaticamente
   criado_em?: string;
   criado_por_id?: string;
   criado_por_email?: string;
@@ -145,11 +146,12 @@ export interface Category {
 }
 
 export const CATEGORIES: Category[] = [
-  { id: 'pessoal',  label: 'Pessoal',  color: '#c2688c', soft: '#f8e4ec' },
-  { id: 'trabalho', label: 'Trabalho', color: '#a583c9', soft: '#f0e8f8' },
-  { id: 'saude',    label: 'Saúde',    color: '#6fae7f', soft: '#e6f3e9' },
-  { id: 'casa',     label: 'Casa',     color: '#c9a24b', soft: '#f8efdd' },
-  { id: 'estudos',  label: 'Estudos',  color: '#7a9ec9', soft: '#e7eef7' },
+  { id: 'pessoal',    label: 'Pessoal',    color: '#c2688c', soft: '#f8e4ec' },
+  { id: 'trabalho',   label: 'Trabalho',   color: '#a583c9', soft: '#f0e8f8' },
+  { id: 'saude',      label: 'Saúde',      color: '#6fae7f', soft: '#e6f3e9' },
+  { id: 'casa',       label: 'Casa',       color: '#c9a24b', soft: '#f8efdd' },
+  { id: 'estudos',    label: 'Estudos',    color: '#7a9ec9', soft: '#e7eef7' },
+  { id: 'financeiro', label: 'Financeiro', color: '#3e8e6f', soft: '#e1f2ea' },
 ];
 
 export function getCategory(id?: string | null): Category {

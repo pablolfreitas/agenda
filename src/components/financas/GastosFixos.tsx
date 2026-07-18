@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { financeService } from '../../services/financeService';
 import type { GastoFixo } from '../../services/financeService';
-import { Trash2, Edit2, CheckCircle, Circle, Copy } from 'lucide-react';
+import { Trash2, Edit2, CheckCircle, Circle, Copy, Calendar } from 'lucide-react';
 
 interface GastosFixosProps {
   mesAno: string;
@@ -21,12 +21,14 @@ export const GastosFixos: React.FC<GastosFixosProps> = ({
   const [gastos, setGastos] = useState<GastoFixo[]>([]);
   const [descricao, setDescricao] = useState('');
   const [valor, setValor] = useState('');
+  const [diaVencimento, setDiaVencimento] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Edit states
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDesc, setEditDesc] = useState('');
   const [editValor, setEditValor] = useState('');
+  const [editDiaVencimento, setEditDiaVencimento] = useState('');
 
   const fetchGastos = useCallback(async () => {
     const list = await financeService.getGastosFixos(mesAno);
@@ -45,13 +47,15 @@ export const GastosFixos: React.FC<GastosFixosProps> = ({
     if (!descricao.trim() || !valor) return;
 
     setLoading(true);
-    const res = await financeService.adicionarGastoFixo(descricao, parseFloat(valor), mesAno);
+    const dia = diaVencimento ? parseInt(diaVencimento, 10) : null;
+    const res = await financeService.adicionarGastoFixo(descricao, parseFloat(valor), mesAno, dia);
     setLoading(false);
 
     if (res.ok) {
       toast('Gasto fixo cadastrado!');
       setDescricao('');
       setValor('');
+      setDiaVencimento('');
       fetchGastos();
       onUpdate();
     } else {
@@ -102,11 +106,13 @@ export const GastosFixos: React.FC<GastosFixosProps> = ({
     setEditingId(g.id);
     setEditDesc(g.descricao);
     setEditValor(String(g.valor));
+    setEditDiaVencimento(g.dia_vencimento ? String(g.dia_vencimento) : '');
   };
 
   const handleSaveEdit = async (id: string) => {
     if (!editDesc.trim() || !editValor) return;
-    const res = await financeService.editarGastoFixo(id, editDesc, parseFloat(editValor));
+    const dia = editDiaVencimento ? parseInt(editDiaVencimento, 10) : null;
+    const res = await financeService.editarGastoFixo(id, editDesc, parseFloat(editValor), dia);
     if (res.ok) {
       toast('Gasto fixo atualizado.');
       setEditingId(null);
@@ -155,6 +161,21 @@ export const GastosFixos: React.FC<GastosFixosProps> = ({
               inputMode="decimal"
             />
           </div>
+          <div className="input-group">
+            <label>Dia do vencimento (opcional)</label>
+            <input
+              type="number"
+              min={1}
+              max={31}
+              placeholder="Ex: 10"
+              value={diaVencimento}
+              onChange={(e) => setDiaVencimento(e.target.value)}
+              inputMode="numeric"
+            />
+            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+              Se preenchido, cria automaticamente um lembrete na agenda todo mês.
+            </span>
+          </div>
           <button type="submit" disabled={loading} className="save-btn" style={{ margin: 0 }}>
             Adicionar Gasto Fixo
           </button>
@@ -194,6 +215,15 @@ export const GastosFixos: React.FC<GastosFixosProps> = ({
                         onChange={(e) => setEditValor(e.target.value)}
                         style={{ padding: '6px', fontSize: '0.8rem', border: '1px solid var(--border)', borderRadius: '6px', flex: 1 }}
                       />
+                      <input
+                        type="number"
+                        min={1}
+                        max={31}
+                        placeholder="Dia venc."
+                        value={editDiaVencimento}
+                        onChange={(e) => setEditDiaVencimento(e.target.value)}
+                        style={{ padding: '6px', fontSize: '0.8rem', border: '1px solid var(--border)', borderRadius: '6px', width: '90px' }}
+                      />
                       <button
                         className="btn-manage"
                         onClick={() => handleSaveEdit(g.id)}
@@ -229,6 +259,23 @@ export const GastosFixos: React.FC<GastosFixosProps> = ({
                       >
                         {g.descricao}
                       </span>
+                      {g.dia_vencimento && (
+                        <span
+                          title={`Vence todo dia ${g.dia_vencimento} · lembrete na agenda`}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            fontSize: '0.65rem',
+                            color: 'var(--text-muted)',
+                            background: 'var(--surface-soft)',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                          }}
+                        >
+                          <Calendar size={10} /> dia {g.dia_vencimento}
+                        </span>
+                      )}
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

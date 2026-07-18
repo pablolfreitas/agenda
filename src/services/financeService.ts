@@ -71,6 +71,8 @@ export interface GastoFixo {
   ativo: boolean;
   criado_em: string;
   atualizado_em: string;
+  dia_vencimento?: number | null;
+  tarefa_id?: string | null;
 }
 
 export interface TotaisFinanceiros {
@@ -492,6 +494,109 @@ class FinanceService {
     }
   }
 
+  /** Monta a data (YYYY-MM-DD) do vencimento a partir de mes_ano + dia_vencimento. */
+  private montarDataVencimento(mesAno: string, diaVencimento: number): string {
+    const [ano, mes] = mesAno.split('-').map(Number);
+    // Garante um dia válido mesmo em meses curtos (ex: dia 31 em fevereiro cai no último dia do mês)
+    const ultimoDiaDoMes = new Date(ano, mes, 0).getDate();
+    const dia = Math.min(diaVencimento, ultimoDiaDoMes);
+    return `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+  }
+
+  /**
+   * Cria, atualiza ou remove a tarefa vinculada de um gasto fixo na agenda,
+   * de acordo com o dia_vencimento informado. Retorna o id da tarefa vinculada
+   * (ou null se o vínculo foi removido). Nunca lança erro para quem chama —
+   * uma falha aqui não deve impedir o salvamento do gasto fixo em si.
+   */
+  private async sincronizarTarefaDoGasto(
+    gastoId: string,
+    descricao: string,
+    valor: number,
+    mesAno: string,
+    diaVencimento: number | null | undefined,
+    tarefaIdAtual: string | null | undefined,
+    pago: boolean
+  ): Promise<string | null> {
+    try {
+      const sessao = await this.getSessao();
+      if (!sessao) return tarefaIdAtual ?? null;
+
+      // Sem dia de vencimento: remove a tarefa vinculada, se existir, e encerra.
+      if (!diaVencimento) {
+        if (tarefaIdAtual) {
+          await supabase.from('tarefas').delete().eq('id', tarefaIdAtual).eq('usuario_id', sessao.user.id);
+        }
+        return null;
+      }
+
+      const dataAgendamento = this.montarDataVencimento(mesAno, diaVencimento);
+      const titulo = `💰 ${descricao}`;
+      const descricaoTarefa = `Vencimento: R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+
+      if (tarefaIdAtual) {
+        const { error } = await supabase
+          .from('tarefas')
+          .update({
+            titulo,
+            descricao: descricaoTarefa,
+            data_agendamento: dataAgendamento,
+            concluida: pago,
+            categoria: 'financeiro',
+            gasto_fixo_id: gastoId,
+          })
+          .eq('id', tarefaIdAtual)
+          .eq('usuario_id', sessao.user.id);
+        if (!error) return tarefaIdAtual;
+        // Se a atualização falhar (ex: tarefa foi apagada manualmente), cai para criar uma nova abaixo.
+      }
+
+      const { data: novaTarefa, error: erroInsert } = await supabase
+        .from('tarefas')
+        .insert({
+          usuario_id: sessao.user.id,
+          data_agendamento: dataAgendamento,
+          bloco_inicio_id: 0,
+          quantidade_blocos: 1,
+          titulo,
+          descricao: descricaoTarefa,
+          concluida: pago,
+          categoria: 'financeiro',
+          gasto_fixo_id: gastoId,
+        })
+        .select('id')
+        .single();
+
+      if (erroInsert) throw erroInsert;
+      return novaTarefa?.id ?? null;
+    } catch (e) {
+      console.error('[FinanceService] sincronizarTarefaDoGasto:', e);
+      return tarefaIdAtual ?? null;
+    }
+  }
+
+  /**
+   * Chamada pela agenda ao concluir/reabrir uma tarefa vinculada a um gasto fixo
+   * (task.gasto_fixo_id). Atualiza o campo `pago` do gasto correspondente.
+   * Não faz nada se a tarefa não tiver vínculo — seguro de chamar sempre.
+   */
+  async sincronizarGastoFixoDaTarefa(gastoFixoId: string, concluida: boolean): Promise<{ ok: boolean; erro?: string }> {
+    try {
+      const sessao = await this.getSessao();
+      if (!sessao) return { ok: false, erro: 'Sem sessão' };
+      const { error } = await supabase
+        .from('gastos_fixos')
+        .update({ pago: concluida })
+        .eq('id', gastoFixoId)
+        .eq('user_id', sessao.user.id);
+      if (error) throw error;
+      return { ok: true };
+    } catch (e: any) {
+      console.error('[FinanceService] sincronizarGastoFixoDaTarefa:', e);
+      return { ok: false, erro: e.message };
+    }
+  }
+
   async getGastosFixos(mesAno: string): Promise<GastoFixo[]> {
     try {
       const sessao = await this.getSessao();
@@ -523,6 +628,23 @@ class FinanceService {
         .eq('user_id', sessao.user.id);
 
       if (error) throw error;
+
+      // Sincroniza com a tarefa vinculada na agenda, se houver.
+      const { data: atual } = await supabase
+        .from('gastos_fixos')
+        .select('tarefa_id')
+        .eq('id', id)
+        .eq('user_id', sessao.user.id)
+        .maybeSingle();
+
+      if (atual?.tarefa_id) {
+        await supabase
+          .from('tarefas')
+          .update({ concluida: pago })
+          .eq('id', atual.tarefa_id)
+          .eq('usuario_id', sessao.user.id);
+      }
+
       return { ok: true };
     } catch (e: any) {
       console.error('[FinanceService] setGastoFixoPago error:', e);
@@ -530,19 +652,36 @@ class FinanceService {
     }
   }
 
-  async adicionarGastoFixo(descricao: string, valor: number, mesAno: string): Promise<{ ok: boolean; erro?: string }> {
+  async adicionarGastoFixo(
+    descricao: string,
+    valor: number,
+    mesAno: string,
+    diaVencimento?: number | null
+  ): Promise<{ ok: boolean; erro?: string }> {
     try {
       const sessao = await this.getSessao();
       if (!sessao) return { ok: false, erro: 'Sem sessão' };
+      const id = crypto.randomUUID();
       const { error } = await supabase.from('gastos_fixos').insert({
-        id: crypto.randomUUID(),
+        id,
         descricao: descricao.trim(),
         valor: valor,
         mes_ano: mesAno,
         user_id: sessao.user.id,
         ativo: true,
+        dia_vencimento: diaVencimento ?? null,
       });
       if (error) throw error;
+
+      if (diaVencimento) {
+        const tarefaId = await this.sincronizarTarefaDoGasto(
+          id, descricao.trim(), valor, mesAno, diaVencimento, null, false
+        );
+        if (tarefaId) {
+          await supabase.from('gastos_fixos').update({ tarefa_id: tarefaId }).eq('id', id);
+        }
+      }
+
       return { ok: true };
     } catch (e: any) {
       console.error('[FinanceService] adicionarGastoFixo:', e);
@@ -550,20 +689,47 @@ class FinanceService {
     }
   }
 
-  async editarGastoFixo(id: string, descricao: string, valor: number): Promise<{ ok: boolean; erro?: string }> {
+  async editarGastoFixo(
+    id: string,
+    descricao: string,
+    valor: number,
+    diaVencimento?: number | null
+  ): Promise<{ ok: boolean; erro?: string }> {
     try {
       const sessao = await this.getSessao();
       if (!sessao) return { ok: false, erro: 'Sem sessão' };
+
+      const { data: atual, error: erroBusca } = await supabase
+        .from('gastos_fixos')
+        .select('mes_ano, tarefa_id, pago, dia_vencimento')
+        .eq('id', id)
+        .eq('user_id', sessao.user.id)
+        .single();
+      if (erroBusca) throw erroBusca;
+
+      // Se o campo não foi informado, preserva o valor atual (mantém compatibilidade
+      // com chamadas antigas que só passam descrição/valor).
+      const diaFinal = diaVencimento !== undefined ? diaVencimento : atual?.dia_vencimento ?? null;
+
       const { error } = await supabase
         .from('gastos_fixos')
         .update({
           descricao: descricao.trim(),
           valor: valor,
+          dia_vencimento: diaFinal,
           atualizado_em: new Date().toISOString(),
         })
         .eq('id', id)
         .eq('user_id', sessao.user.id);
       if (error) throw error;
+
+      const tarefaId = await this.sincronizarTarefaDoGasto(
+        id, descricao.trim(), valor, atual.mes_ano, diaFinal, atual?.tarefa_id, atual?.pago ?? false
+      );
+      if (tarefaId !== atual?.tarefa_id) {
+        await supabase.from('gastos_fixos').update({ tarefa_id: tarefaId }).eq('id', id);
+      }
+
       return { ok: true };
     } catch (e: any) {
       console.error('[FinanceService] editarGastoFixo:', e);
@@ -575,12 +741,25 @@ class FinanceService {
     try {
       const sessao = await this.getSessao();
       if (!sessao) return { ok: false, erro: 'Sem sessão' };
+
+      const { data: atual } = await supabase
+        .from('gastos_fixos')
+        .select('tarefa_id')
+        .eq('id', id)
+        .eq('user_id', sessao.user.id)
+        .maybeSingle();
+
       const { error } = await supabase
         .from('gastos_fixos')
         .update({ ativo: false, atualizado_em: new Date().toISOString() })
         .eq('id', id)
         .eq('user_id', sessao.user.id);
       if (error) throw error;
+
+      if (atual?.tarefa_id) {
+        await supabase.from('tarefas').delete().eq('id', atual.tarefa_id).eq('usuario_id', sessao.user.id);
+      }
+
       return { ok: true };
     } catch (e: any) {
       console.error('[FinanceService] removerGastoFixo:', e);
@@ -594,6 +773,29 @@ class FinanceService {
         p_mes_ano: mesAno,
       });
       if (error) throw error;
+
+      // Gera as tarefas na agenda para os gastos recém-copiados que já têm
+      // dia_vencimento definido (a RPC copia o dia, mas nunca o tarefa_id).
+      const sessao = await this.getSessao();
+      if (sessao) {
+        const { data: novos } = await supabase
+          .from('gastos_fixos')
+          .select('id, descricao, valor, dia_vencimento, pago, tarefa_id')
+          .eq('user_id', sessao.user.id)
+          .eq('mes_ano', mesAno)
+          .not('dia_vencimento', 'is', null)
+          .is('tarefa_id', null);
+
+        for (const g of novos || []) {
+          const tarefaId = await this.sincronizarTarefaDoGasto(
+            g.id, g.descricao, Number(g.valor), mesAno, g.dia_vencimento, null, g.pago
+          );
+          if (tarefaId) {
+            await supabase.from('gastos_fixos').update({ tarefa_id: tarefaId }).eq('id', g.id);
+          }
+        }
+      }
+
       return { ok: true, copiados: data || 0 };
     } catch (e: any) {
       console.error('[FinanceService] copiarGastosFixosMesAnterior:', e);
