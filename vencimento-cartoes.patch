@@ -1,0 +1,570 @@
+diff --git a/src/components/Dashboard/Dashboard.tsx b/src/components/Dashboard/Dashboard.tsx
+index 81c6725..c4643cf 100644
+--- a/src/components/Dashboard/Dashboard.tsx
++++ b/src/components/Dashboard/Dashboard.tsx
+@@ -179,12 +179,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigg
+     if (task.gasto_fixo_id) {
+       financeService.sincronizarGastoFixoDaTarefa(task.gasto_fixo_id, novoStatus);
+     }
++    if (task.cartao_id) {
++      financeService.sincronizarCartaoPagoDaTarefa(task.cartao_id, task.data_agendamento, novoStatus);
++    }
+   };
+ 
+   const handleDeleteTask = async (task: Task) => {
+     if (!task.id) return;
+     const msg = task.gasto_fixo_id
+       ? 'Esta tarefa é gerada automaticamente por um gasto fixo. Excluí-la aqui não apaga o gasto — apenas remove o lembrete da agenda. Deseja continuar?'
++      : task.cartao_id
++      ? 'Esta tarefa é o lembrete de vencimento de um cartão. Excluí-la aqui não afeta a fatura — apenas remove o lembrete da agenda. Deseja continuar?'
+       : 'Deseja realmente excluir esta tarefa?';
+     if (!window.confirm(msg)) return;
+ 
+@@ -494,6 +499,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigg
+                                   💰
+                                 </span>
+                               )}
++                              {task.cartao_id && (
++                                <span className="serie-badge" title="Vencimento de fatura de cartão">
++                                  💳
++                                </span>
++                              )}
+                             </span>
+                             {hasDetails && (
+                               <button
+diff --git a/src/components/financas/FinancasDashboard.css b/src/components/financas/FinancasDashboard.css
+index a9343a8..a96aa38 100644
+--- a/src/components/financas/FinancasDashboard.css
++++ b/src/components/financas/FinancasDashboard.css
+@@ -12,6 +12,7 @@
+   display: flex;
+   justify-content: space-between;
+   align-items: center;
++  gap: 10px;
+   margin-bottom: 20px;
+   padding: 8px 4px;
+ }
+@@ -21,32 +22,36 @@
+   font-size: 1.6rem;
+   color: var(--text-primary);
+   font-weight: 700;
++  white-space: nowrap;
++  flex-shrink: 1;
+ }
+ 
+ .header-actions {
+   display: flex;
+   align-items: center;
+-  gap: 8px;
++  gap: 6px;
++  flex-shrink: 0;
+ }
+ 
+ .month-selector {
+   background: var(--surface);
+   border: 1px solid var(--border);
+-  padding: 6px 10px;
++  padding: 6px 8px;
+   border-radius: 12px;
+-  font-size: 0.8rem;
++  font-size: 0.74rem;
+   font-weight: 600;
+   color: var(--text-primary);
+   outline: none;
+   cursor: pointer;
+   box-shadow: var(--shadow-card);
++  max-width: 108px;
+ }
+ 
+ .btn-icon {
+   background: var(--surface);
+   border: 1px solid var(--border);
+-  width: 34px;
+-  height: 34px;
++  width: 30px;
++  height: 30px;
+   border-radius: 50%;
+   display: flex;
+   align-items: center;
+@@ -56,6 +61,7 @@
+   box-shadow: var(--shadow-card);
+   transition: transform 0.2s, background-color 0.2s;
+   padding: 0;
++  flex-shrink: 0;
+ }
+ 
+ .btn-icon:hover {
+diff --git a/src/components/financas/FinancasDashboard.tsx b/src/components/financas/FinancasDashboard.tsx
+index 673564e..83efdc3 100644
+--- a/src/components/financas/FinancasDashboard.tsx
++++ b/src/components/financas/FinancasDashboard.tsx
+@@ -69,6 +69,7 @@ export const FinancasDashboard: React.FC<FinancasDashboardProps> = ({ openCreate
+   const fetchDados = useCallback(async () => {
+     const t = await financeService.calcularTotais(mesAno);
+     setTotais(t);
++    return t;
+   }, [mesAno]);
+ 
+   useEffect(() => {
+@@ -86,6 +87,31 @@ export const FinancasDashboard: React.FC<FinancasDashboardProps> = ({ openCreate
+     return () => unsub();
+   }, [fetchDados]);
+ 
++  // Sincroniza os lembretes de vencimento de cartão na agenda apenas quando
++  // o mês selecionado muda — evita reescrever a tarefa a cada atualização
++  // em tempo real (ex: cada compra nova no cartão).
++  useEffect(() => {
++    const timer = setTimeout(async () => {
++      const cartoes = await financeService.getCartoes();
++      const comVencimento = cartoes.filter((c) => c.dia_vencimento);
++      if (comVencimento.length === 0) return;
++
++      const t = await financeService.calcularTotais(mesAno);
++      if (!t) return;
++
++      for (const c of comVencimento) {
++        const totalCartao = t.porCartao.find((pc) => pc.id === c.id);
++        await financeService.sincronizarVencimentoCartao(
++          c,
++          mesAno,
++          totalCartao?.total ?? 0,
++          totalCartao?.pago ?? false
++        );
++      }
++    }, 300);
++    return () => clearTimeout(timer);
++  }, [mesAno]);
++
+   useEffect(() => {
+     document.documentElement.dataset.theme = theme;
+     localStorage.setItem('theme', theme);
+diff --git a/src/components/financas/GerenciarCartoes.tsx b/src/components/financas/GerenciarCartoes.tsx
+index 9de7782..565e188 100644
+--- a/src/components/financas/GerenciarCartoes.tsx
++++ b/src/components/financas/GerenciarCartoes.tsx
+@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
+ import { financeService } from '../../services/financeService';
+ import type { Cartao } from '../../services/financeService';
+ import { BANCOS } from '../../utils/bancos';
+-import { Trash2, Plus } from 'lucide-react';
++import { Trash2, Plus, Calendar } from 'lucide-react';
+ 
+ interface GerenciarCartoesProps {
+   onClose: () => void;
+@@ -21,6 +21,8 @@ export const GerenciarCartoes: React.FC<GerenciarCartoesProps> = ({
+   const [nomePersonalizado, setNomePersonalizado] = useState('');
+   const [corPersonalizada, setCorPersonalizada] = useState('#6366f1');
+   const [loading, setLoading] = useState(false);
++  const [editandoVencimentoId, setEditandoVencimentoId] = useState<string | null>(null);
++  const [diaVencimentoInput, setDiaVencimentoInput] = useState('');
+ 
+   const fetchCartoes = useCallback(async () => {
+     const list = await financeService.getCartoes();
+@@ -79,6 +81,24 @@ export const GerenciarCartoes: React.FC<GerenciarCartoesProps> = ({
+     });
+   };
+ 
++  const handleStartEditVencimento = (c: Cartao) => {
++    setEditandoVencimentoId(c.id);
++    setDiaVencimentoInput(c.dia_vencimento ? String(c.dia_vencimento) : '');
++  };
++
++  const handleSaveVencimento = async (id: string) => {
++    const dia = diaVencimentoInput ? parseInt(diaVencimentoInput, 10) : null;
++    const res = await financeService.editarCartao(id, dia);
++    if (res.ok) {
++      toast(dia ? 'Vencimento salvo! Lembrete criado na agenda.' : 'Vencimento removido.');
++      setEditandoVencimentoId(null);
++      fetchCartoes();
++      onUpdate();
++    } else {
++      toast(res.erro || 'Erro ao salvar vencimento.', 'erro');
++    }
++  };
++
+   return (
+     <div className="secondary-page">
+       <div className="page-header">
+@@ -174,35 +194,102 @@ export const GerenciarCartoes: React.FC<GerenciarCartoesProps> = ({
+                 key={c.id}
+                 style={{
+                   display: 'flex',
+-                  justifyContent: 'space-between',
+-                  alignItems: 'center',
++                  flexDirection: 'column',
++                  gap: '6px',
+                   padding: '8px 0',
+                   borderBottom: '1px solid var(--border)',
+                 }}
+               >
+-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+-                  <div
++                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
++                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
++                    <div
++                      style={{
++                        width: '12px',
++                        height: '12px',
++                        borderRadius: '50%',
++                        background: c.cor,
++                      }}
++                    />
++                    <span style={{ fontSize: '0.84rem', fontWeight: 600 }}>{c.nome}</span>
++                    {c.dia_vencimento && (
++                      <span
++                        title={`Vence todo dia ${c.dia_vencimento} · lembrete na agenda`}
++                        style={{
++                          display: 'inline-flex',
++                          alignItems: 'center',
++                          gap: '3px',
++                          fontSize: '0.65rem',
++                          color: 'var(--text-muted)',
++                          background: 'var(--surface-soft)',
++                          padding: '2px 6px',
++                          borderRadius: '4px',
++                        }}
++                      >
++                        <Calendar size={10} /> dia {c.dia_vencimento}
++                      </span>
++                    )}
++                  </div>
++                  <button
++                    onClick={() => handleRemoverCartao(c.id, c.nome)}
+                     style={{
+-                      width: '12px',
+-                      height: '12px',
+-                      borderRadius: '50%',
+-                      background: c.cor,
++                      background: 'none',
++                      border: 'none',
++                      color: 'var(--danger)',
++                      cursor: 'pointer',
++                      padding: '4px',
+                     }}
+-                  />
+-                  <span style={{ fontSize: '0.84rem', fontWeight: 600 }}>{c.nome}</span>
++                  >
++                    <Trash2 size={16} />
++                  </button>
+                 </div>
+-                <button
+-                  onClick={() => handleRemoverCartao(c.id, c.nome)}
+-                  style={{
+-                    background: 'none',
+-                    border: 'none',
+-                    color: 'var(--danger)',
+-                    cursor: 'pointer',
+-                    padding: '4px',
+-                  }}
+-                >
+-                  <Trash2 size={16} />
+-                </button>
++
++                {editandoVencimentoId === c.id ? (
++                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
++                    <input
++                      type="number"
++                      min={1}
++                      max={31}
++                      placeholder="Dia do vencimento"
++                      value={diaVencimentoInput}
++                      onChange={(e) => setDiaVencimentoInput(e.target.value)}
++                      style={{ padding: '6px', fontSize: '0.8rem', border: '1px solid var(--border)', borderRadius: '6px', flex: 1 }}
++                    />
++                    <button
++                      className="btn-manage"
++                      onClick={() => handleSaveVencimento(c.id)}
++                      style={{ background: 'var(--success)', color: '#fff' }}
++                    >
++                      Salvar
++                    </button>
++                    <button
++                      className="btn-manage"
++                      onClick={() => setEditandoVencimentoId(null)}
++                      style={{ background: 'var(--border-strong)', color: 'var(--text-primary)' }}
++                    >
++                      Voltar
++                    </button>
++                  </div>
++                ) : (
++                  <button
++                    onClick={() => handleStartEditVencimento(c)}
++                    style={{
++                      alignSelf: 'flex-start',
++                      background: 'none',
++                      border: 'none',
++                      color: 'var(--accent)',
++                      fontSize: '0.68rem',
++                      fontWeight: 600,
++                      cursor: 'pointer',
++                      padding: '2px 0',
++                      display: 'flex',
++                      alignItems: 'center',
++                      gap: '3px',
++                    }}
++                  >
++                    <Calendar size={11} />
++                    {c.dia_vencimento ? 'Alterar dia do vencimento' : 'Definir dia do vencimento'}
++                  </button>
++                )}
+               </div>
+             ))
+           )}
+diff --git a/src/services/financeService.ts b/src/services/financeService.ts
+index d735e49..cc791e3 100644
+--- a/src/services/financeService.ts
++++ b/src/services/financeService.ts
+@@ -17,6 +17,7 @@ export interface Cartao {
+   cor: string;
+   ativo: boolean;
+   criado_em: string;
++  dia_vencimento?: number | null;
+ }
+ 
+ export interface Rendas {
+@@ -162,6 +163,37 @@ class FinanceService {
+     }
+   }
+ 
++  async editarCartao(id: string, diaVencimento: number | null): Promise<{ ok: boolean; erro?: string }> {
++    try {
++      const sessao = await this.getSessao();
++      if (!sessao) return { ok: false, erro: 'Sem sessão' };
++
++      const { data: cartao, error } = await supabase
++        .from('cartoes')
++        .update({ dia_vencimento: diaVencimento })
++        .eq('id', id)
++        .eq('user_id', sessao.user.id)
++        .select('id, nome, dia_vencimento')
++        .single();
++      if (error) throw error;
++
++      // Sincroniza a tarefa do mês atual imediatamente, para o usuário
++      // ver o lembrete na agenda sem precisar trocar de mês na tela.
++      if (cartao?.dia_vencimento) {
++        const hoje = new Date();
++        const mesAno = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
++        const totais = await this.calcularTotais(mesAno);
++        const totalCartao = totais?.porCartao.find((pc) => pc.id === id);
++        await this.sincronizarVencimentoCartao(cartao, mesAno, totalCartao?.total ?? 0, totalCartao?.pago ?? false);
++      }
++
++      return { ok: true };
++    } catch (e: any) {
++      console.error('[FinanceService] editarCartao:', e);
++      return { ok: false, erro: e.message };
++    }
++  }
++
+   async removerCartao(id: string): Promise<{ ok: boolean; erro?: string }> {
+     try {
+       const sessao = await this.getSessao();
+@@ -172,6 +204,18 @@ class FinanceService {
+         .eq('id', id)
+         .eq('user_id', sessao.user.id);
+       if (error) throw error;
++
++      // Remove apenas os lembretes de vencimento futuros (a partir de hoje);
++      // tarefas de meses passados permanecem como histórico na agenda.
++      const hoje = new Date();
++      const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
++      await supabase
++        .from('tarefas')
++        .delete()
++        .eq('cartao_id', id)
++        .eq('usuario_id', sessao.user.id)
++        .gte('data_agendamento', `${mesAtual}-01`);
++
+       return { ok: true };
+     } catch (e: any) {
+       console.error('[FinanceService] removerCartao:', e);
+@@ -229,6 +273,24 @@ class FinanceService {
+           .eq('mes_ano', mesAno);
+         if (error) throw error;
+       }
++
++      // Sincroniza com a tarefa de vencimento vinculada na agenda, se houver.
++      const { data: vinculo } = await supabase
++        .from('cartoes_vencimento_tarefas')
++        .select('tarefa_id')
++        .eq('user_id', sessao.user.id)
++        .eq('cartao_id', cartaoId)
++        .eq('mes_ano', mesAno)
++        .maybeSingle();
++
++      if (vinculo?.tarefa_id) {
++        await supabase
++          .from('tarefas')
++          .update({ concluida: pago })
++          .eq('id', vinculo.tarefa_id)
++          .eq('usuario_id', sessao.user.id);
++      }
++
+       return { ok: true };
+     } catch (e: any) {
+       console.error('[FinanceService] setCartaoPago database error:', e);
+@@ -597,6 +659,92 @@ class FinanceService {
+     }
+   }
+ 
++  /**
++   * Garante que exista, para o mês informado, uma tarefa na agenda lembrando
++   * do vencimento do cartão (quando ele tiver dia_vencimento definido).
++   * Cria ou atualiza a tarefa e o vínculo em cartoes_vencimento_tarefas.
++   * Não faz nada (e não lança erro) se o cartão não tiver dia_vencimento.
++   * Seguro de chamar sempre — é idempotente por mês/cartão.
++   */
++  async sincronizarVencimentoCartao(
++    cartao: { id: string; nome: string; dia_vencimento?: number | null },
++    mesAno: string,
++    valorFatura: number,
++    pago: boolean
++  ): Promise<void> {
++    try {
++      if (!cartao.dia_vencimento) return;
++      const sessao = await this.getSessao();
++      if (!sessao) return;
++
++      const { data: vinculo } = await supabase
++        .from('cartoes_vencimento_tarefas')
++        .select('tarefa_id')
++        .eq('user_id', sessao.user.id)
++        .eq('cartao_id', cartao.id)
++        .eq('mes_ano', mesAno)
++        .maybeSingle();
++
++      const dataAgendamento = this.montarDataVencimento(mesAno, cartao.dia_vencimento);
++      const titulo = `💳 Fatura ${cartao.nome}`;
++      const descricaoTarefa = `Vencimento: R$ ${valorFatura.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
++
++      if (vinculo?.tarefa_id) {
++        await supabase
++          .from('tarefas')
++          .update({
++            titulo,
++            descricao: descricaoTarefa,
++            data_agendamento: dataAgendamento,
++            concluida: pago,
++            categoria: 'financeiro',
++            cartao_id: cartao.id,
++          })
++          .eq('id', vinculo.tarefa_id)
++          .eq('usuario_id', sessao.user.id);
++        return;
++      }
++
++      const { data: novaTarefa, error: erroInsert } = await supabase
++        .from('tarefas')
++        .insert({
++          usuario_id: sessao.user.id,
++          data_agendamento: dataAgendamento,
++          bloco_inicio_id: 0,
++          quantidade_blocos: 1,
++          titulo,
++          descricao: descricaoTarefa,
++          concluida: pago,
++          categoria: 'financeiro',
++          cartao_id: cartao.id,
++        })
++        .select('id')
++        .single();
++
++      if (erroInsert) throw erroInsert;
++      if (novaTarefa?.id) {
++        await supabase.from('cartoes_vencimento_tarefas').insert({
++          user_id: sessao.user.id,
++          cartao_id: cartao.id,
++          mes_ano: mesAno,
++          tarefa_id: novaTarefa.id,
++        });
++      }
++    } catch (e) {
++      console.error('[FinanceService] sincronizarVencimentoCartao:', e);
++    }
++  }
++
++  /**
++   * Chamada pela agenda ao concluir/reabrir uma tarefa de vencimento de
++   * cartão (task.cartao_id). Atualiza o status "pago" desse cartão no mês
++   * em que a tarefa está agendada. Seguro de chamar sempre.
++   */
++  async sincronizarCartaoPagoDaTarefa(cartaoId: string, dataAgendamento: string, concluida: boolean): Promise<{ ok: boolean; erro?: string }> {
++    const mesAno = dataAgendamento.slice(0, 7);
++    return this.setCartaoPago(cartaoId, mesAno, concluida);
++  }
++
+   async getGastosFixos(mesAno: string): Promise<GastoFixo[]> {
+     try {
+       const sessao = await this.getSessao();
+diff --git a/src/utils/timeSlots.ts b/src/utils/timeSlots.ts
+index e19f8db..c448fcb 100644
+--- a/src/utils/timeSlots.ts
++++ b/src/utils/timeSlots.ts
+@@ -18,6 +18,7 @@ export interface Task {
+   categoria?: string;      // id em CATEGORIES (padrão: 'pessoal')
+   serie_id?: string | null; // agrupa repetições de uma tarefa recorrente
+   gasto_fixo_id?: string | null; // vincula a um gasto fixo, quando gerada automaticamente
++  cartao_id?: string | null;     // vincula ao vencimento de um cartão, quando gerada automaticamente
+   criado_em?: string;
+   criado_por_id?: string;
+   criado_por_email?: string;
+diff --git a/supabase/migracao_v4_vencimento_cartoes.sql b/supabase/migracao_v4_vencimento_cartoes.sql
+new file mode 100644
+index 0000000..d0d5c29
+--- /dev/null
++++ b/supabase/migracao_v4_vencimento_cartoes.sql
+@@ -0,0 +1,53 @@
++-- ============================================================
++-- MIGRAÇÃO v4 — Vencimento de Cartões vinculado à Agenda
++-- ============================================================
++-- Execute este arquivo inteiro no SQL Editor do Supabase.
++-- Todas as alterações são ADITIVAS. Nenhuma linha existente em
++-- `cartoes` ou `tarefas` é apagada, alterada ou perde
++-- funcionalidade. Pode ser executado com segurança em produção.
++-- ============================================================
++
++-- 1. Novo campo em cartoes: dia do vencimento da fatura (opcional).
++--    Quando preenchido (1 a 31), o app passa a gerar automaticamente,
++--    todo mês, uma tarefa de lembrete na agenda nesse dia.
++ALTER TABLE cartoes
++  ADD COLUMN IF NOT EXISTS dia_vencimento SMALLINT
++    CHECK (dia_vencimento IS NULL OR (dia_vencimento BETWEEN 1 AND 31));
++
++-- 2. Nova tabela: guarda, por cartão e por mês, qual tarefa da agenda
++--    representa o lembrete de vencimento daquele cartão naquele mês.
++--    Diferente de `cartoes_pagos` (que só existe enquanto pago=true),
++--    este vínculo precisa sobreviver independente do status de
++--    pagamento, por isso é uma tabela própria.
++CREATE TABLE IF NOT EXISTS cartoes_vencimento_tarefas (
++  user_id   UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
++  cartao_id UUID NOT NULL REFERENCES cartoes(id) ON DELETE CASCADE,
++  mes_ano   TEXT NOT NULL,
++  tarefa_id UUID NOT NULL REFERENCES tarefas(id) ON DELETE CASCADE,
++  PRIMARY KEY (user_id, cartao_id, mes_ano)
++);
++
++ALTER TABLE cartoes_vencimento_tarefas ENABLE ROW LEVEL SECURITY;
++CREATE POLICY "Usuário vê seus vínculos de vencimento" ON cartoes_vencimento_tarefas
++  FOR SELECT USING (auth.uid() = user_id);
++CREATE POLICY "Usuário insere seus vínculos de vencimento" ON cartoes_vencimento_tarefas
++  FOR INSERT WITH CHECK (auth.uid() = user_id);
++CREATE POLICY "Usuário atualiza seus vínculos de vencimento" ON cartoes_vencimento_tarefas
++  FOR UPDATE USING (auth.uid() = user_id);
++CREATE POLICY "Usuário remove seus vínculos de vencimento" ON cartoes_vencimento_tarefas
++  FOR DELETE USING (auth.uid() = user_id);
++
++-- 3. Novo campo em tarefas: referência ao cartão de origem, quando a
++--    tarefa é o lembrete de vencimento de fatura. Fica NULL para todas
++--    as tarefas normais (comportamento atual, 100% preservado).
++ALTER TABLE tarefas
++  ADD COLUMN IF NOT EXISTS cartao_id UUID REFERENCES cartoes(id) ON DELETE SET NULL;
++
++CREATE INDEX IF NOT EXISTS idx_tarefas_cartao ON tarefas(cartao_id) WHERE cartao_id IS NOT NULL;
++
++-- ============================================================
++-- Nenhuma alteração é feita nas políticas de RLS de `cartoes` ou
++-- `tarefas` — as regras existentes já isolam por usuário. A nova
++-- tabela `cartoes_vencimento_tarefas` recebe suas próprias políticas
++-- acima, seguindo o mesmo padrão do restante do banco.
++-- ============================================================

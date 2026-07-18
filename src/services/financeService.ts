@@ -17,6 +17,7 @@ export interface Cartao {
   cor: string;
   ativo: boolean;
   criado_em: string;
+  dia_vencimento?: number | null;
 }
 
 export interface Rendas {
@@ -162,6 +163,37 @@ class FinanceService {
     }
   }
 
+  async editarCartao(id: string, diaVencimento: number | null): Promise<{ ok: boolean; erro?: string }> {
+    try {
+      const sessao = await this.getSessao();
+      if (!sessao) return { ok: false, erro: 'Sem sessão' };
+
+      const { data: cartao, error } = await supabase
+        .from('cartoes')
+        .update({ dia_vencimento: diaVencimento })
+        .eq('id', id)
+        .eq('user_id', sessao.user.id)
+        .select('id, nome, dia_vencimento')
+        .single();
+      if (error) throw error;
+
+      // Sincroniza a tarefa do mês atual imediatamente, para o usuário
+      // ver o lembrete na agenda sem precisar trocar de mês na tela.
+      if (cartao?.dia_vencimento) {
+        const hoje = new Date();
+        const mesAno = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+        const totais = await this.calcularTotais(mesAno);
+        const totalCartao = totais?.porCartao.find((pc) => pc.id === id);
+        await this.sincronizarVencimentoCartao(cartao, mesAno, totalCartao?.total ?? 0, totalCartao?.pago ?? false);
+      }
+
+      return { ok: true };
+    } catch (e: any) {
+      console.error('[FinanceService] editarCartao:', e);
+      return { ok: false, erro: e.message };
+    }
+  }
+
   async removerCartao(id: string): Promise<{ ok: boolean; erro?: string }> {
     try {
       const sessao = await this.getSessao();
@@ -172,6 +204,18 @@ class FinanceService {
         .eq('id', id)
         .eq('user_id', sessao.user.id);
       if (error) throw error;
+
+      // Remove apenas os lembretes de vencimento futuros (a partir de hoje);
+      // tarefas de meses passados permanecem como histórico na agenda.
+      const hoje = new Date();
+      const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+      await supabase
+        .from('tarefas')
+        .delete()
+        .eq('cartao_id', id)
+        .eq('usuario_id', sessao.user.id)
+        .gte('data_agendamento', `${mesAtual}-01`);
+
       return { ok: true };
     } catch (e: any) {
       console.error('[FinanceService] removerCartao:', e);
@@ -229,6 +273,24 @@ class FinanceService {
           .eq('mes_ano', mesAno);
         if (error) throw error;
       }
+
+      // Sincroniza com a tarefa de vencimento vinculada na agenda, se houver.
+      const { data: vinculo } = await supabase
+        .from('cartoes_vencimento_tarefas')
+        .select('tarefa_id')
+        .eq('user_id', sessao.user.id)
+        .eq('cartao_id', cartaoId)
+        .eq('mes_ano', mesAno)
+        .maybeSingle();
+
+      if (vinculo?.tarefa_id) {
+        await supabase
+          .from('tarefas')
+          .update({ concluida: pago })
+          .eq('id', vinculo.tarefa_id)
+          .eq('usuario_id', sessao.user.id);
+      }
+
       return { ok: true };
     } catch (e: any) {
       console.error('[FinanceService] setCartaoPago database error:', e);
@@ -595,6 +657,92 @@ class FinanceService {
       console.error('[FinanceService] sincronizarGastoFixoDaTarefa:', e);
       return { ok: false, erro: e.message };
     }
+  }
+
+  /**
+   * Garante que exista, para o mês informado, uma tarefa na agenda lembrando
+   * do vencimento do cartão (quando ele tiver dia_vencimento definido).
+   * Cria ou atualiza a tarefa e o vínculo em cartoes_vencimento_tarefas.
+   * Não faz nada (e não lança erro) se o cartão não tiver dia_vencimento.
+   * Seguro de chamar sempre — é idempotente por mês/cartão.
+   */
+  async sincronizarVencimentoCartao(
+    cartao: { id: string; nome: string; dia_vencimento?: number | null },
+    mesAno: string,
+    valorFatura: number,
+    pago: boolean
+  ): Promise<void> {
+    try {
+      if (!cartao.dia_vencimento) return;
+      const sessao = await this.getSessao();
+      if (!sessao) return;
+
+      const { data: vinculo } = await supabase
+        .from('cartoes_vencimento_tarefas')
+        .select('tarefa_id')
+        .eq('user_id', sessao.user.id)
+        .eq('cartao_id', cartao.id)
+        .eq('mes_ano', mesAno)
+        .maybeSingle();
+
+      const dataAgendamento = this.montarDataVencimento(mesAno, cartao.dia_vencimento);
+      const titulo = `💳 Fatura ${cartao.nome}`;
+      const descricaoTarefa = `Vencimento: R$ ${valorFatura.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+
+      if (vinculo?.tarefa_id) {
+        await supabase
+          .from('tarefas')
+          .update({
+            titulo,
+            descricao: descricaoTarefa,
+            data_agendamento: dataAgendamento,
+            concluida: pago,
+            categoria: 'financeiro',
+            cartao_id: cartao.id,
+          })
+          .eq('id', vinculo.tarefa_id)
+          .eq('usuario_id', sessao.user.id);
+        return;
+      }
+
+      const { data: novaTarefa, error: erroInsert } = await supabase
+        .from('tarefas')
+        .insert({
+          usuario_id: sessao.user.id,
+          data_agendamento: dataAgendamento,
+          bloco_inicio_id: 0,
+          quantidade_blocos: 1,
+          titulo,
+          descricao: descricaoTarefa,
+          concluida: pago,
+          categoria: 'financeiro',
+          cartao_id: cartao.id,
+        })
+        .select('id')
+        .single();
+
+      if (erroInsert) throw erroInsert;
+      if (novaTarefa?.id) {
+        await supabase.from('cartoes_vencimento_tarefas').insert({
+          user_id: sessao.user.id,
+          cartao_id: cartao.id,
+          mes_ano: mesAno,
+          tarefa_id: novaTarefa.id,
+        });
+      }
+    } catch (e) {
+      console.error('[FinanceService] sincronizarVencimentoCartao:', e);
+    }
+  }
+
+  /**
+   * Chamada pela agenda ao concluir/reabrir uma tarefa de vencimento de
+   * cartão (task.cartao_id). Atualiza o status "pago" desse cartão no mês
+   * em que a tarefa está agendada. Seguro de chamar sempre.
+   */
+  async sincronizarCartaoPagoDaTarefa(cartaoId: string, dataAgendamento: string, concluida: boolean): Promise<{ ok: boolean; erro?: string }> {
+    const mesAno = dataAgendamento.slice(0, 7);
+    return this.setCartaoPago(cartaoId, mesAno, concluida);
   }
 
   async getGastosFixos(mesAno: string): Promise<GastoFixo[]> {

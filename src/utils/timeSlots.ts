@@ -18,6 +18,7 @@ export interface Task {
   categoria?: string;      // id em CATEGORIES (padrão: 'pessoal')
   serie_id?: string | null; // agrupa repetições de uma tarefa recorrente
   gasto_fixo_id?: string | null; // vincula a um gasto fixo, quando gerada automaticamente
+  cartao_id?: string | null;     // vincula ao vencimento de um cartão, quando gerada automaticamente
   criado_em?: string;
   criado_por_id?: string;
   criado_por_email?: string;

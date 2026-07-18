@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { financeService } from '../../services/financeService';
 import type { Cartao } from '../../services/financeService';
 import { BANCOS } from '../../utils/bancos';
-import { Trash2, Plus } from 'lucide-react';
+import { Trash2, Plus, Calendar } from 'lucide-react';
 
 interface GerenciarCartoesProps {
   onClose: () => void;
@@ -21,6 +21,8 @@ export const GerenciarCartoes: React.FC<GerenciarCartoesProps> = ({
   const [nomePersonalizado, setNomePersonalizado] = useState('');
   const [corPersonalizada, setCorPersonalizada] = useState('#6366f1');
   const [loading, setLoading] = useState(false);
+  const [editandoVencimentoId, setEditandoVencimentoId] = useState<string | null>(null);
+  const [diaVencimentoInput, setDiaVencimentoInput] = useState('');
 
   const fetchCartoes = useCallback(async () => {
     const list = await financeService.getCartoes();
@@ -77,6 +79,24 @@ export const GerenciarCartoes: React.FC<GerenciarCartoesProps> = ({
         toast(res.erro || 'Erro ao remover cartão.', 'erro');
       }
     });
+  };
+
+  const handleStartEditVencimento = (c: Cartao) => {
+    setEditandoVencimentoId(c.id);
+    setDiaVencimentoInput(c.dia_vencimento ? String(c.dia_vencimento) : '');
+  };
+
+  const handleSaveVencimento = async (id: string) => {
+    const dia = diaVencimentoInput ? parseInt(diaVencimentoInput, 10) : null;
+    const res = await financeService.editarCartao(id, dia);
+    if (res.ok) {
+      toast(dia ? 'Vencimento salvo! Lembrete criado na agenda.' : 'Vencimento removido.');
+      setEditandoVencimentoId(null);
+      fetchCartoes();
+      onUpdate();
+    } else {
+      toast(res.erro || 'Erro ao salvar vencimento.', 'erro');
+    }
   };
 
   return (
@@ -174,35 +194,102 @@ export const GerenciarCartoes: React.FC<GerenciarCartoesProps> = ({
                 key={c.id}
                 style={{
                   display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
+                  flexDirection: 'column',
+                  gap: '6px',
                   padding: '8px 0',
                   borderBottom: '1px solid var(--border)',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div
+                      style={{
+                        width: '12px',
+                        height: '12px',
+                        borderRadius: '50%',
+                        background: c.cor,
+                      }}
+                    />
+                    <span style={{ fontSize: '0.84rem', fontWeight: 600 }}>{c.nome}</span>
+                    {c.dia_vencimento && (
+                      <span
+                        title={`Vence todo dia ${c.dia_vencimento} · lembrete na agenda`}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          fontSize: '0.65rem',
+                          color: 'var(--text-muted)',
+                          background: 'var(--surface-soft)',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                        }}
+                      >
+                        <Calendar size={10} /> dia {c.dia_vencimento}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleRemoverCartao(c.id, c.nome)}
                     style={{
-                      width: '12px',
-                      height: '12px',
-                      borderRadius: '50%',
-                      background: c.cor,
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--danger)',
+                      cursor: 'pointer',
+                      padding: '4px',
                     }}
-                  />
-                  <span style={{ fontSize: '0.84rem', fontWeight: 600 }}>{c.nome}</span>
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </div>
-                <button
-                  onClick={() => handleRemoverCartao(c.id, c.nome)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--danger)',
-                    cursor: 'pointer',
-                    padding: '4px',
-                  }}
-                >
-                  <Trash2 size={16} />
-                </button>
+
+                {editandoVencimentoId === c.id ? (
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input
+                      type="number"
+                      min={1}
+                      max={31}
+                      placeholder="Dia do vencimento"
+                      value={diaVencimentoInput}
+                      onChange={(e) => setDiaVencimentoInput(e.target.value)}
+                      style={{ padding: '6px', fontSize: '0.8rem', border: '1px solid var(--border)', borderRadius: '6px', flex: 1 }}
+                    />
+                    <button
+                      className="btn-manage"
+                      onClick={() => handleSaveVencimento(c.id)}
+                      style={{ background: 'var(--success)', color: '#fff' }}
+                    >
+                      Salvar
+                    </button>
+                    <button
+                      className="btn-manage"
+                      onClick={() => setEditandoVencimentoId(null)}
+                      style={{ background: 'var(--border-strong)', color: 'var(--text-primary)' }}
+                    >
+                      Voltar
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => handleStartEditVencimento(c)}
+                    style={{
+                      alignSelf: 'flex-start',
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--accent)',
+                      fontSize: '0.68rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      padding: '2px 0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '3px',
+                    }}
+                  >
+                    <Calendar size={11} />
+                    {c.dia_vencimento ? 'Alterar dia do vencimento' : 'Definir dia do vencimento'}
+                  </button>
+                )}
               </div>
             ))
           )}
