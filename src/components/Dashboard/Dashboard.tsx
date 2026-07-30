@@ -263,7 +263,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigg
           <div className="create-page card">
             <div className="create-header">
               <h2>{editingTask ? 'Editar tarefa' : 'Nova tarefa'}</h2>
-              <p className="create-subtitle">{formatDisplayDate(selectedDate)}</p>
+              {!editingTask && (
+                <p className="create-subtitle">{formatDisplayDate(selectedDate)}</p>
+              )}
             </div>
             <TaskFormInline
               key={editingTask?.id ?? 'nova'}

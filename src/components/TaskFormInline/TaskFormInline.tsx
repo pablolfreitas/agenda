@@ -80,12 +80,43 @@ export const TaskFormInline: React.FC<TaskFormInlineProps> = ({
   const [descricao, setDescricao] = useState(editingTask?.descricao ?? '');
   const [categoria, setCategoria] = useState(editingTask?.categoria ?? 'pessoal');
   const [recorrencia, setRecorrencia] = useState<Recurrence>('nenhuma');
+  const [dataAgendamento, setDataAgendamento] = useState(
+    editingTask?.data_agendamento ?? selectedDate
+  );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Tarefas do dia efetivamente selecionado no formulário (para checar
+  // conflito de horário). Quando a data escolhida é a mesma que já foi
+  // carregada pela tela (selectedDate), reaproveita existingTasks; se o
+  // usuário mudar para outra data, busca as tarefas daquele dia no banco.
+  const [tasksForDate, setTasksForDate] = useState<Task[]>(existingTasks);
+
+  useEffect(() => {
+    if (dataAgendamento === selectedDate) {
+      setTasksForDate(existingTasks);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+      const { data } = await supabase
+        .from('tarefas')
+        .select('*')
+        .eq('usuario_id', session.user.id)
+        .eq('data_agendamento', dataAgendamento);
+      if (!cancelled) setTasksForDate((data as Task[]) || []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataAgendamento, selectedDate]);
+
   // Mapa de slots ocupados (ignora a própria tarefa ao editar)
   const occupiedSlotsMap = new Set<number>();
-  existingTasks.forEach((t) => {
+  tasksForDate.forEach((t) => {
     if (isEditing && t.id === editingTask?.id) return;
     getOccupiedSlots(t.bloco_inicio_id, t.quantidade_blocos).forEach((s) =>
       occupiedSlotsMap.add(s)
@@ -150,13 +181,13 @@ export const TaskFormInline: React.FC<TaskFormInlineProps> = ({
       return;
     }
 
-    if (definirHorario && hasConflict(blocoInicioId, quantidadeBlocos, existingTasks, editingTask?.id)) {
+    if (definirHorario && hasConflict(blocoInicioId, quantidadeBlocos, tasksForDate, editingTask?.id)) {
       setErrorMsg('Esse horário já está reservado. Escolha outro intervalo.');
       return;
     }
 
     const base: Omit<Task, 'id' | 'usuario_id'> = {
-      data_agendamento: selectedDate,
+      data_agendamento: dataAgendamento,
       bloco_inicio_id: definirHorario ? blocoInicioId : 0,
       quantidade_blocos: definirHorario ? quantidadeBlocos : 1,
       titulo: cleanTitle,
@@ -175,7 +206,7 @@ export const TaskFormInline: React.FC<TaskFormInlineProps> = ({
           await onCreate([base]);
         } else {
           const serieId = crypto.randomUUID();
-          const dates = getRecurrenceDates(selectedDate, recorrencia);
+          const dates = getRecurrenceDates(dataAgendamento, recorrencia);
           await onCreate(
             dates.map((d) => ({ ...base, data_agendamento: d, serie_id: serieId }))
           );
@@ -189,7 +220,7 @@ export const TaskFormInline: React.FC<TaskFormInlineProps> = ({
         }
         const res = await financeService.criarTarefaCompartilhada(
           agendaDestino,
-          selectedDate,
+          dataAgendamento,
           base.bloco_inicio_id,
           base.quantidade_blocos,
           base.titulo,
@@ -300,6 +331,18 @@ export const TaskFormInline: React.FC<TaskFormInlineProps> = ({
           placeholder="Ex: Aula de pilates, reunião, café com a Ana..."
           value={titulo}
           onChange={(e) => setTitulo(e.target.value)}
+        />
+      </div>
+
+      {/* Data da tarefa */}
+      <div className="form-group">
+        <label htmlFor="inline-data">Data</label>
+        <input
+          id="inline-data"
+          type="date"
+          required
+          value={dataAgendamento}
+          onChange={(e) => setDataAgendamento(e.target.value)}
         />
       </div>
 

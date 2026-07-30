@@ -177,14 +177,18 @@ class FinanceService {
         .single();
       if (error) throw error;
 
-      // Sincroniza a tarefa do mês atual imediatamente, para o usuário
-      // ver o lembrete na agenda sem precisar trocar de mês na tela.
+      // Sincroniza a tarefa do mês atual e dos próximos 11 meses imediatamente,
+      // para o usuário já ver o lembrete recorrente na agenda sem precisar
+      // trocar de mês na tela em cada mês futuro.
       if (cartao?.dia_vencimento) {
         const hoje = new Date();
-        const mesAno = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
-        const totais = await this.calcularTotais(mesAno);
-        const totalCartao = totais?.porCartao.find((pc) => pc.id === id);
-        await this.sincronizarVencimentoCartao(cartao, mesAno, totalCartao?.total ?? 0, totalCartao?.pago ?? false);
+        for (let i = 0; i < 12; i++) {
+          const d = new Date(hoje.getFullYear(), hoje.getMonth() + i, 1);
+          const mesAno = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+          const totais = await this.calcularTotais(mesAno);
+          const totalCartao = totais?.porCartao.find((pc) => pc.id === id);
+          await this.sincronizarVencimentoCartao(cartao, mesAno, totalCartao?.total ?? 0, totalCartao?.pago ?? false);
+        }
       }
 
       return { ok: true };
