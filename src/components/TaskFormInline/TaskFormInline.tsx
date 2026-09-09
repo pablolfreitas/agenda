@@ -293,7 +293,10 @@ export const TaskFormInline: React.FC<TaskFormInlineProps> = ({
           base.quantidade_blocos,
           base.titulo,
           base.descricao || '',
-          base.categoria || 'pessoal'
+          base.categoria || 'pessoal',
+          base.anexo_url,
+          base.anexo_nome,
+          base.anexo_tipo
         );
         if (!res.ok) {
           throw new Error(res.erro || 'Erro ao enviar lembrete.');

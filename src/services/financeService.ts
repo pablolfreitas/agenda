@@ -1267,7 +1267,10 @@ class FinanceService {
     quantidadeBlocos: number,
     titulo: string,
     descricao: string,
-    categoria: string
+    categoria: string,
+    anexoUrl?: string | null,
+    anexoNome?: string | null,
+    anexoTipo?: string | null
   ) {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) return { ok: false, erro: 'Sessão expirada.' };
@@ -1280,7 +1283,10 @@ class FinanceService {
       p_titulo: titulo,
       p_descricao: descricao,
       p_categoria: categoria,
-      p_remetente_email: session.user.email
+      p_remetente_email: session.user.email,
+      p_anexo_url: anexoUrl || null,
+      p_anexo_nome: anexoNome || null,
+      p_anexo_tipo: anexoTipo || null,
     });
 
     if (error) return { ok: false, erro: error.message };

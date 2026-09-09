@@ -409,7 +409,10 @@ CREATE OR REPLACE FUNCTION public.criar_tarefa_compartilhada(
   p_titulo TEXT,
   p_descricao TEXT,
   p_categoria TEXT,
-  p_remetente_email TEXT
+  p_remetente_email TEXT,
+  p_anexo_url TEXT DEFAULT NULL,
+  p_anexo_nome TEXT DEFAULT NULL,
+  p_anexo_tipo TEXT DEFAULT NULL
 )
 RETURNS JSON AS $$
 DECLARE
@@ -442,7 +445,7 @@ BEGIN
     RETURN json_build_object('ok', false, 'erro', 'Limite de 3 lembretes enviados por dia atingido.');
   END IF;
 
-  -- 3. Insere a tarefa na agenda do destinatário
+  -- 3. Insere a tarefa na agenda do destinatário incluindo o anexo
   INSERT INTO public.tarefas (
     usuario_id,
     data_agendamento,
@@ -452,7 +455,10 @@ BEGIN
     descricao,
     categoria,
     criado_por_id,
-    criado_por_email
+    criado_por_email,
+    anexo_url,
+    anexo_nome,
+    anexo_tipo
   ) VALUES (
     p_receptor_id,
     p_data::date,
@@ -462,7 +468,10 @@ BEGIN
     p_descricao,
     p_categoria,
     auth.uid(),
-    p_remetente_email
+    p_remetente_email,
+    p_anexo_url,
+    p_anexo_nome,
+    p_anexo_tipo
   ) RETURNING id INTO v_new_id;
 
   RETURN json_build_object('ok', true, 'id', v_new_id);
