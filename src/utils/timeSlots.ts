@@ -19,6 +19,9 @@ export interface Task {
   serie_id?: string | null; // agrupa repetições de uma tarefa recorrente
   gasto_fixo_id?: string | null; // vincula a um gasto fixo, quando gerada automaticamente
   cartao_id?: string | null;     // vincula ao vencimento de um cartão, quando gerada automaticamente
+  anexo_url?: string | null;
+  anexo_nome?: string | null;
+  anexo_tipo?: string | null;
   criado_em?: string;
   criado_por_id?: string;
   criado_por_email?: string;

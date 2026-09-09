@@ -22,8 +22,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  FileText,
   Flower2,
   LogOut,
+  Paperclip,
   Pencil,
   Plus,
   Trash2,
@@ -67,7 +69,16 @@ function friendlyDbError(msg: string): string {
   if (msg.includes('categoria') || msg.includes('serie_id')) {
     return 'O banco precisa ser atualizado: execute o arquivo migracao_v2.sql no SQL Editor do Supabase.';
   }
+  if (msg.includes('anexo_url') || msg.includes('anexo_nome') || msg.includes('anexo_tipo')) {
+    return 'O banco precisa ser atualizado: execute o arquivo supabase/migracao_v5_anexos_tarefas.sql no SQL Editor do Supabase.';
+  }
   return msg;
+}
+
+function isImageAttachment(url?: string | null, tipo?: string | null): boolean {
+  if (!url) return false;
+  if (tipo?.startsWith('image/')) return true;
+  return /\.(jpg|jpeg|png|webp|gif|svg|bmp|avif)(\?.*)?$/i.test(url);
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigger, userEmail = '' }) => {
@@ -79,6 +90,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigg
   const [fetchError, setFetchError] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [detailTask, setDetailTask] = useState<Task | null>(null);
+  const [zoomedImage, setZoomedImage] = useState<{ url: string; title: string } | null>(null);
 
   const defaultInitialSlot = 9;
   const isToday = selectedDate === getLocalDateString();
@@ -416,10 +428,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigg
                 <div className="timeline-list">
                   {taskRows.map(({ task, startSlot, endSlot }) => {
                     const gcalUrl = buildGoogleCalendarUrl(task, selectedDate);
-                    const hasDetails = Boolean(task.descricao && task.descricao.trim());
+                    const hasDetails = Boolean(
+                      (task.descricao && task.descricao.trim()) || task.anexo_url
+                    );
                     const isExpanded = expandedId === task.id;
                     const cat = getCategory(task.categoria);
                     const isNoTime = task.bloco_inicio_id === 0;
+                    const isImage = isImageAttachment(task.anexo_url, task.anexo_tipo);
                     return (
                       <div key={task.id} className="timeline-row">
                         {isNoTime ? (
@@ -506,6 +521,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigg
                                   💳
                                 </span>
                               )}
+                              {task.anexo_url && (
+                                <span
+                                  className="anexo-badge"
+                                  title={isImage ? 'Possui foto' : 'Possui anexo'}
+                                >
+                                  <Paperclip size={10} />
+                                </span>
+                              )}
                             </span>
                             {hasDetails && (
                               <button
@@ -513,7 +536,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigg
                                 onClick={(e) => { e.stopPropagation(); setDetailTask(task); }}
                               >
                                 <ChevronDown size={13} />
-                                ver anotação
+                                {task.anexo_url ? (task.descricao ? 'ver detalhes' : (isImage ? 'ver foto' : 'ver anexo')) : 'ver anotação'}
                               </button>
                             )}
                           </div>
@@ -614,7 +637,74 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSignOut, openCreateTrigg
               </button>
             </div>
             <h3 className="detail-modal-title">{detailTask.titulo}</h3>
-            <p className="detail-modal-desc">{detailTask.descricao}</p>
+            {detailTask.descricao && (
+              <p className="detail-modal-desc">{detailTask.descricao}</p>
+            )}
+            {detailTask.anexo_url && (
+              <div className="detail-modal-attachment">
+                {isImageAttachment(detailTask.anexo_url, detailTask.anexo_tipo) ? (
+                  <div
+                    className="detail-modal-img-wrap"
+                    onClick={() =>
+                      setZoomedImage({
+                        url: detailTask.anexo_url!,
+                        title: detailTask.titulo,
+                      })
+                    }
+                  >
+                    <img
+                      src={detailTask.anexo_url}
+                      alt={detailTask.anexo_nome || 'Foto da tarefa'}
+                      className="detail-modal-img"
+                    />
+                    <span className="task-photo-zoom-tag">Toque para ampliar 🔍</span>
+                  </div>
+                ) : (
+                  <a
+                    href={detailTask.anexo_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="task-file-link-card"
+                  >
+                    <FileText size={16} />
+                    <span className="task-file-link-name">
+                      {detailTask.anexo_nome || 'Visualizar anexo'}
+                    </span>
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox para ampliação de imagem */}
+      {zoomedImage && (
+        <div className="image-lightbox-overlay" onClick={() => setZoomedImage(null)}>
+          <div className="image-lightbox-card" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="image-lightbox-close"
+              onClick={() => setZoomedImage(null)}
+              title="Fechar"
+            >
+              <X size={20} />
+            </button>
+            <img
+              src={zoomedImage.url}
+              alt={zoomedImage.title}
+              className="image-lightbox-img"
+            />
+            <div className="image-lightbox-footer">
+              <span className="image-lightbox-title">{zoomedImage.title}</span>
+              <a
+                href={zoomedImage.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="image-lightbox-link"
+              >
+                Abrir imagem original
+              </a>
+            </div>
           </div>
         </div>
       )}

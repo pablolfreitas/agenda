@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   TIME_SLOTS,
   CATEGORIES,
@@ -11,6 +11,8 @@ import {
 import type { Task, Recurrence } from '../../utils/timeSlots';
 import { supabase } from '../../services/supabaseClient';
 import { financeService } from '../../services/financeService';
+import { uploadAttachment } from '../../services/storageService';
+import { Paperclip, X, FileText } from 'lucide-react';
 
 interface TaskFormInlineProps {
   selectedDate: string;
@@ -86,17 +88,55 @@ export const TaskFormInline: React.FC<TaskFormInlineProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Anexos
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(editingTask?.anexo_url ?? null);
+  const [anexoNome, setAnexoNome] = useState<string | null>(editingTask?.anexo_nome ?? null);
+  const [anexoTipo, setAnexoTipo] = useState<string | null>(editingTask?.anexo_tipo ?? null);
+  const [removeAttachment, setRemoveAttachment] = useState(false);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setErrorMsg('O arquivo excede o limite máximo de 10MB.');
+      return;
+    }
+
+    setSelectedFile(file);
+    setAnexoNome(file.name);
+    setAnexoTipo(file.type || 'application/octet-stream');
+    setRemoveAttachment(false);
+
+    if (file.type.startsWith('image/')) {
+      const objUrl = URL.createObjectURL(file);
+      setPreviewUrl(objUrl);
+    } else {
+      setPreviewUrl(null);
+    }
+  };
+
+  const handleClearAttachment = () => {
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setAnexoNome(null);
+    setAnexoTipo(null);
+    setRemoveAttachment(true);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   // Tarefas do dia efetivamente selecionado no formulário (para checar
   // conflito de horário). Quando a data escolhida é a mesma que já foi
   // carregada pela tela (selectedDate), reaproveita existingTasks; se o
   // usuário mudar para outra data, busca as tarefas daquele dia no banco.
-  const [tasksForDate, setTasksForDate] = useState<Task[]>(existingTasks);
+  const [remoteTasks, setRemoteTasks] = useState<{ date: string; tasks: Task[] } | null>(null);
 
   useEffect(() => {
-    if (dataAgendamento === selectedDate) {
-      setTasksForDate(existingTasks);
-      return;
-    }
+    if (dataAgendamento === selectedDate) return;
     let cancelled = false;
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -106,13 +146,19 @@ export const TaskFormInline: React.FC<TaskFormInlineProps> = ({
         .select('*')
         .eq('usuario_id', session.user.id)
         .eq('data_agendamento', dataAgendamento);
-      if (!cancelled) setTasksForDate((data as Task[]) || []);
+      if (!cancelled) setRemoteTasks({ date: dataAgendamento, tasks: (data as Task[]) || [] });
     })();
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataAgendamento, selectedDate]);
+
+  const tasksForDate =
+    dataAgendamento === selectedDate
+      ? existingTasks
+      : remoteTasks?.date === dataAgendamento
+      ? remoteTasks.tasks
+      : [];
 
   // Mapa de slots ocupados (ignora a própria tarefa ao editar)
   const occupiedSlotsMap = new Set<number>();
@@ -186,19 +232,41 @@ export const TaskFormInline: React.FC<TaskFormInlineProps> = ({
       return;
     }
 
-    const base: Omit<Task, 'id' | 'usuario_id'> = {
-      data_agendamento: dataAgendamento,
-      bloco_inicio_id: definirHorario ? blocoInicioId : 0,
-      quantidade_blocos: definirHorario ? quantidadeBlocos : 1,
-      titulo: cleanTitle,
-      descricao: descricao.trim(),
-      concluida: editingTask?.concluida ?? false,
-      categoria,
-      serie_id: editingTask?.serie_id ?? null,
-    };
-
     setLoading(true);
     try {
+      let finalAnexoUrl = editingTask?.anexo_url ?? null;
+      let finalAnexoNome = editingTask?.anexo_nome ?? null;
+      let finalAnexoTipo = editingTask?.anexo_tipo ?? null;
+
+      if (removeAttachment) {
+        finalAnexoUrl = null;
+        finalAnexoNome = null;
+        finalAnexoTipo = null;
+      } else if (selectedFile) {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session?.user) throw new Error('Sessão expirada. Entre novamente.');
+        const uploaded = await uploadAttachment(selectedFile, session.user.id);
+        finalAnexoUrl = uploaded.url;
+        finalAnexoNome = uploaded.nome;
+        finalAnexoTipo = uploaded.tipo;
+      }
+
+      const base: Omit<Task, 'id' | 'usuario_id'> = {
+        data_agendamento: dataAgendamento,
+        bloco_inicio_id: definirHorario ? blocoInicioId : 0,
+        quantidade_blocos: definirHorario ? quantidadeBlocos : 1,
+        titulo: cleanTitle,
+        descricao: descricao.trim(),
+        concluida: editingTask?.concluida ?? false,
+        categoria,
+        serie_id: editingTask?.serie_id ?? null,
+        anexo_url: finalAnexoUrl,
+        anexo_nome: finalAnexoNome,
+        anexo_tipo: finalAnexoTipo,
+      };
+
       if (agendaDestino === 'minha') {
         if (isEditing && editingTask?.id) {
           await onUpdate(editingTask.id, base);
@@ -403,6 +471,61 @@ export const TaskFormInline: React.FC<TaskFormInlineProps> = ({
           value={descricao}
           onChange={(e) => setDescricao(e.target.value)}
         />
+      </div>
+
+      {/* Anexo / Foto */}
+      <div className="form-group">
+        <label>Foto ou anexo (opcional)</label>
+        <input
+          type="file"
+          ref={fileInputRef}
+          style={{ display: 'none' }}
+          onChange={handleFileSelect}
+          accept="image/*,application/pdf,.doc,.docx,.txt"
+        />
+
+        {!selectedFile && !previewUrl && (!anexoNome || removeAttachment) ? (
+          <button
+            type="button"
+            className="btn-attach"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Paperclip size={16} />
+            <span>Adicionar foto ou anexo</span>
+          </button>
+        ) : (
+          <div className="attachment-preview-card">
+            {previewUrl || (anexoTipo?.startsWith('image/') && editingTask?.anexo_url) ? (
+              <div className="attachment-img-preview-wrap">
+                <img
+                  src={previewUrl || editingTask?.anexo_url || ''}
+                  alt="Pré-visualização"
+                  className="attachment-img-preview"
+                />
+              </div>
+            ) : (
+              <div className="attachment-file-badge">
+                <FileText size={20} className="attachment-file-icon" />
+              </div>
+            )}
+            <div className="attachment-file-info">
+              <span className="attachment-file-name" title={anexoNome || 'Anexo'}>
+                {anexoNome || 'Arquivo anexado'}
+              </span>
+              <span className="attachment-file-status">
+                {selectedFile ? 'Pronto para salvar' : 'Anexo salvo'}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="btn-remove-attachment"
+              onClick={handleClearAttachment}
+              title="Remover anexo"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Opção de horário */}
