@@ -96,6 +96,22 @@ export interface TotaisFinanceiros {
   }[];
 }
 
+export interface CompraParcelada {
+  grupoId: string;
+  descricao: string;
+  valorParcela: number;
+  valorTotal: number;
+  totalParcelas: number;
+  parcelasPagas: number;
+  parcelasFaltam: number;
+  cartao: string;
+  cor: string;
+  mesFim: string;
+  labelFim: string;
+}
+
+const MESES_ABREV = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
 class FinanceService {
   async getSessao() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -1198,7 +1214,7 @@ class FinanceService {
 
         const gastosTotais = gastosCartoes + gastosFixosTot + gastosOutrosTot;
         const [ano, mes] = mesAno.split('-').map(Number);
-        const label = new Date(ano, mes - 1, 1).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+        const label = `${MESES_ABREV[mes - 1]} ${ano}`;
 
         return {
           mesAno,
@@ -1251,11 +1267,121 @@ class FinanceService {
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([mesAno, total]) => {
           const [ano, mes] = mesAno.split('-').map(Number);
-          const label = new Date(ano, mes - 1, 1).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+          const label = `${MESES_ABREV[mes - 1]} ${ano}`;
           return { mesAno, label, total };
         });
     } catch (e) {
       console.error('[FinanceService] getParcelasFuturas:', e);
+      return [];
+    }
+  }
+
+  /**
+   * Retorna todas as compras parceladas (total_parcelas > 1) que ainda têm
+   * parcelas pendentes a partir do mês atual. Agrupa por grupo_id e calcula
+   * o progresso (pagas vs faltam). Somente leitura — nunca grava no banco.
+   */
+  async getComprasParceladas(): Promise<CompraParcelada[]> {
+    try {
+      const sessao = await this.getSessao();
+      if (!sessao) return [];
+
+      const hoje = new Date();
+      const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+
+      const { data, error } = await supabase
+        .from('transacoes')
+        .select('grupo_id, descricao, valor, valor_total, parcela_atual, total_parcelas, mes_ano, cartoes(nome, cor)')
+        .eq('user_id', sessao.user.id)
+        .gt('total_parcelas', 1)
+        .order('mes_ano', { ascending: true });
+
+      if (error) throw error;
+      if (!data || data.length === 0) return [];
+
+      const grupos = new Map<string, any[]>();
+      (data as any[]).forEach((t) => {
+        if (!grupos.has(t.grupo_id)) grupos.set(t.grupo_id, []);
+        grupos.get(t.grupo_id)!.push(t);
+      });
+
+      const result: CompraParcelada[] = [];
+      grupos.forEach((parcelas, grupoId) => {
+        const sorted = [...parcelas].sort((a, b) => Number(a.parcela_atual) - Number(b.parcela_atual));
+        const primeira = sorted[0];
+        const ultima = sorted[sorted.length - 1];
+
+        const pagas = sorted.filter((p) => p.mes_ano < mesAtual).length;
+        const faltam = sorted.filter((p) => p.mes_ano >= mesAtual).length;
+
+        if (faltam === 0) return; // todas pagas, não exibir
+
+        const [ano, mes] = ultima.mes_ano.split('-').map(Number);
+
+        result.push({
+          grupoId,
+          descricao: primeira.descricao,
+          valorParcela: Number(primeira.valor),
+          valorTotal: Number(primeira.valor_total) || Number(primeira.valor) * Number(primeira.total_parcelas),
+          totalParcelas: Number(primeira.total_parcelas),
+          parcelasPagas: pagas,
+          parcelasFaltam: faltam,
+          cartao: (primeira.cartoes as any)?.nome ?? '',
+          cor: (primeira.cartoes as any)?.cor ?? '#1e293b',
+          mesFim: ultima.mes_ano,
+          labelFim: `${MESES_ABREV[mes - 1]} ${ano}`,
+        });
+      });
+
+      return result.sort((a, b) => a.mesFim.localeCompare(b.mesFim));
+    } catch (e) {
+      console.error('[FinanceService] getComprasParceladas:', e);
+      return [];
+    }
+  }
+
+  /**
+   * Retorna o histórico de Vale Alimentação (total, gasto, restante) dos
+   * últimos `quantidadeMeses` meses. Somente leitura.
+   */
+  async getHistoricoVA(quantidadeMeses: number = 6): Promise<{
+    mesAno: string;
+    label: string;
+    vaTotal: number;
+    vaGasto: number;
+    vaRestante: number;
+  }[]> {
+    try {
+      const sessao = await this.getSessao();
+      if (!sessao) return [];
+
+      const hoje = new Date();
+      const meses: string[] = [];
+      for (let i = quantidadeMeses - 1; i >= 0; i--) {
+        const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+        meses.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+      }
+
+      const { data } = await supabase
+        .from('rendas')
+        .select('mes_ano, va_total, va_gasto, va_restante')
+        .eq('user_id', sessao.user.id)
+        .gte('mes_ano', meses[0])
+        .lte('mes_ano', meses[meses.length - 1]);
+
+      return meses.map((mesAno) => {
+        const r = (data || []).find((d) => d.mes_ano === mesAno);
+        const [ano, mes] = mesAno.split('-').map(Number);
+        return {
+          mesAno,
+          label: `${MESES_ABREV[mes - 1]} ${ano}`,
+          vaTotal: r ? Number(r.va_total ?? 0) : 0,
+          vaGasto: r ? Number(r.va_gasto ?? 0) : 0,
+          vaRestante: r ? Number(r.va_restante ?? 0) : 0,
+        };
+      });
+    } catch (e) {
+      console.error('[FinanceService] getHistoricoVA:', e);
       return [];
     }
   }
