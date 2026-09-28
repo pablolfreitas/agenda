@@ -48,6 +48,8 @@ export const FinancasDashboard: React.FC<FinancasDashboardProps> = ({ openCreate
     });
   };
 
+  const MESES_ABREV = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
   const popularMeses = () => {
     const list = [];
     const inicio = new Date(2026, 0); // Jan 2026
@@ -57,7 +59,7 @@ export const FinancasDashboard: React.FC<FinancasDashboardProps> = ({ openCreate
     let cur = new Date(inicio);
     while (cur <= fim) {
       const val = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}`;
-      const label = cur.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+      const label = `${MESES_ABREV[cur.getMonth()]} ${cur.getFullYear()}`;
       list.push({ val, label });
       cur = new Date(cur.getFullYear(), cur.getMonth() + 1);
     }
