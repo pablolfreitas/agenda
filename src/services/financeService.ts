@@ -1213,8 +1213,7 @@ class FinanceService {
           .reduce((s, g) => s + Number(g.valor), 0);
 
         const gastosTotais = gastosCartoes + gastosFixosTot + gastosOutrosTot;
-        const [ano, mes] = mesAno.split('-').map(Number);
-        const label = `${MESES_ABREV[mes - 1]} ${ano}`;
+        const label = `${MESES_ABREV[mes - 1]} ${String(ano).slice(-2)}`;
 
         return {
           mesAno,
@@ -1267,7 +1266,7 @@ class FinanceService {
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([mesAno, total]) => {
           const [ano, mes] = mesAno.split('-').map(Number);
-          const label = `${MESES_ABREV[mes - 1]} ${ano}`;
+          const label = `${MESES_ABREV[mes - 1]} ${String(ano).slice(-2)}`;
           return { mesAno, label, total };
         });
     } catch (e) {
@@ -1329,7 +1328,7 @@ class FinanceService {
           cartao: (primeira.cartoes as any)?.nome ?? '',
           cor: (primeira.cartoes as any)?.cor ?? '#1e293b',
           mesFim: ultima.mes_ano,
-          labelFim: `${MESES_ABREV[mes - 1]} ${ano}`,
+          labelFim: `${MESES_ABREV[mes - 1]} ${String(ano).slice(-2)}`,
         });
       });
 
@@ -1374,7 +1373,7 @@ class FinanceService {
         const [ano, mes] = mesAno.split('-').map(Number);
         return {
           mesAno,
-          label: `${MESES_ABREV[mes - 1]} ${ano}`,
+          label: `${MESES_ABREV[mes - 1]} ${String(ano).slice(-2)}`,
           vaTotal: r ? Number(r.va_total ?? 0) : 0,
           vaGasto: r ? Number(r.va_gasto ?? 0) : 0,
           vaRestante: r ? Number(r.va_restante ?? 0) : 0,

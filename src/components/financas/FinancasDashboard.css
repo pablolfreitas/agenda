@@ -19,7 +19,7 @@
 
 .financas-header h2 {
   font-family: var(--font-display);
-  font-size: 1.6rem;
+  font-size: 1.45rem;
   color: var(--text-primary);
   font-weight: 700;
   white-space: nowrap;
@@ -29,7 +29,7 @@
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   flex-shrink: 0;
 }
 
@@ -38,13 +38,13 @@
   border: 1px solid var(--border);
   padding: 6px 6px;
   border-radius: 12px;
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--text-primary);
   outline: none;
   cursor: pointer;
   box-shadow: var(--shadow-card);
-  max-width: 88px;
+  max-width: 82px;
 }
 
 .btn-icon {

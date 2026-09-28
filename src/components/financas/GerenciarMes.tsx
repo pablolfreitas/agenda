@@ -6,7 +6,7 @@ const MESES_ABREV = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Se
 function mesAnoToLabel(mesAno: string): string {
   const [ano, mes] = mesAno.split('-').map(Number);
   if (!mes || !ano || mes < 1 || mes > 12) return mesAno;
-  return `${MESES_ABREV[mes - 1]} ${ano}`;
+  return `${MESES_ABREV[mes - 1]} ${String(ano).slice(-2)}`;
 }
 
 interface GerenciarMesProps {
@@ -28,40 +28,38 @@ export const GerenciarMes: React.FC<GerenciarMesProps> = ({
   toast,
   confirmar,
 }) => {
-  const [novoMes, setNovoMes] = useState('');
   const [mesLimpar, setMesLimpar] = useState(mesAtual);
   const [mesApagar, setMesApagar] = useState(mesAtual);
   // 'adicionar' | 'limpar' | 'apagar' | null — controla qual botão mostra loading
   const [operacao, setOperacao] = useState<'adicionar' | 'limpar' | 'apagar' | null>(null);
 
-  const handleAdicionarMes = async () => {
-    if (!novoMes || operacao) return;
+  // Identifica o último mês existente na lista
+  const ultimoMes = mesOpcoes.length > 0 ? mesOpcoes[mesOpcoes.length - 1] : null;
 
-    // Valida formato YYYY-MM
-    if (!/^\d{4}-\d{2}$/.test(novoMes)) {
-      toast('Formato inválido. Use AAAA-MM.', 'erro');
-      return;
+  // Próximo mês consecutivo
+  const proximoMesVal = (() => {
+    if (!ultimoMes) {
+      const hoje = new Date();
+      return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
     }
-    const [ano, mes] = novoMes.split('-').map(Number);
-    if (mes < 1 || mes > 12 || ano < 2000 || ano > 2100) {
-      toast('Data inválida.', 'erro');
-      return;
-    }
+    const [ultimoAno, ultimoNumMes] = ultimoMes.val.split('-').map(Number);
+    // Date(ano, mesIndex): passando ultimoNumMes (1-12) como mesIndex já dá o mês seguinte com virada de ano automática
+    const proxData = new Date(ultimoAno, ultimoNumMes);
+    return `${proxData.getFullYear()}-${String(proxData.getMonth() + 1).padStart(2, '0')}`;
+  })();
 
-    // Já está na lista?
-    if (mesOpcoes.some((m) => m.val === novoMes)) {
-      toast(`${mesAnoToLabel(novoMes)} já está na lista.`, 'erro');
-      return;
-    }
+  const proximoMesLabel = mesAnoToLabel(proximoMesVal);
+
+  const handleAdicionarProximoMes = async () => {
+    if (operacao) return;
 
     setOperacao('adicionar');
-    const resultado = await financeService.garantirRendaMes(novoMes);
+    const resultado = await financeService.garantirRendaMes(proximoMesVal);
     setOperacao(null);
 
     if (resultado) {
-      toast(`${mesAnoToLabel(novoMes)} adicionado com sucesso!`);
-      onMesAdicionado(novoMes);
-      setNovoMes('');
+      toast(`${proximoMesLabel} adicionado com sucesso!`);
+      onMesAdicionado(proximoMesVal);
     } else {
       toast('Erro ao adicionar mês.', 'erro');
     }
@@ -113,28 +111,22 @@ export const GerenciarMes: React.FC<GerenciarMesProps> = ({
         {/* ── ➕ ADICIONAR MÊS ───────────────────────────── */}
         <div className="finance-section-card card">
           <div className="section-title-row">
-            <span>➕ Adicionar mês</span>
+            <span>➕ Adicionar próximo mês</span>
           </div>
           <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: 0, marginBottom: '14px' }}>
-            Adiciona um mês fora do período padrão — por exemplo, meses anteriores ou futuros distantes.
+            Último mês cadastrado: <strong>{ultimoMes?.label || 'Nenhum'}</strong>
           </p>
-          <div className="input-group">
-            <label>Mês</label>
-            <input
-              type="month"
-              value={novoMes}
-              onChange={(e) => setNovoMes(e.target.value)}
-              min="2000-01"
-              max="2100-12"
-            />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: 'var(--surface-soft)', borderRadius: 'var(--radius-sm)', marginBottom: '14px' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Próximo mês consecutivo:</span>
+            <span style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--accent)' }}>{proximoMesLabel}</span>
           </div>
           <button
             className="save-btn"
-            onClick={handleAdicionarMes}
-            disabled={!novoMes || operacao !== null}
-            style={{ opacity: !novoMes || operacao !== null ? 0.5 : 1, cursor: !novoMes || operacao !== null ? 'not-allowed' : 'pointer' }}
+            onClick={handleAdicionarProximoMes}
+            disabled={operacao !== null}
+            style={{ opacity: operacao !== null ? 0.5 : 1, cursor: operacao !== null ? 'not-allowed' : 'pointer', width: '100%' }}
           >
-            {operacao === 'adicionar' ? 'Adicionando...' : 'Adicionar mês'}
+            {operacao === 'adicionar' ? 'Adicionando...' : `Adicionar ${proximoMesLabel}`}
           </button>
         </div>
 

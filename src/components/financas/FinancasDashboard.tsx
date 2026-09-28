@@ -18,7 +18,7 @@ const MESES_ABREV = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Se
 function mesAnoToLabel(mesAno: string): string {
   const [ano, mes] = mesAno.split('-').map(Number);
   if (!mes || !ano || mes < 1 || mes > 12) return mesAno;
-  return `${MESES_ABREV[mes - 1]} ${ano}`;
+  return `${MESES_ABREV[mes - 1]} ${String(ano).slice(-2)}`;
 }
 
 interface FinancasDashboardProps {
@@ -69,7 +69,7 @@ export const FinancasDashboard: React.FC<FinancasDashboardProps> = ({ openCreate
     let cur = new Date(inicio);
     while (cur <= fim) {
       const val = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}`;
-      const label = `${MESES_ABREV[cur.getMonth()]} ${cur.getFullYear()}`;
+      const label = `${MESES_ABREV[cur.getMonth()]} ${String(cur.getFullYear()).slice(-2)}`;
       list.push({ val, label });
       cur = new Date(cur.getFullYear(), cur.getMonth() + 1);
     }
@@ -235,8 +235,8 @@ export const FinancasDashboard: React.FC<FinancasDashboardProps> = ({ openCreate
               </option>
             ))}
           </select>
-          <button className="btn-icon btn-icon-sm" onClick={() => setSubPage('gerenciar-mes')} title="Gerenciar meses">
-            <Settings size={14} />
+          <button className="btn-icon" onClick={() => setSubPage('gerenciar-mes')} title="Gerenciar meses">
+            <Settings size={16} />
           </button>
           <button className="btn-icon" onClick={() => setSubPage('historico')} title="Histórico e Projeções">
             <LineChart size={16} />
