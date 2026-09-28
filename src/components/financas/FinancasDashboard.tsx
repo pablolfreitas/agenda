@@ -227,21 +227,17 @@ export const FinancasDashboard: React.FC<FinancasDashboardProps> = ({ openCreate
           <select
             className="month-selector"
             value={mesAno}
-            onChange={(e) => {
-              if (e.target.value === '__gerenciar__') {
-                setSubPage('gerenciar-mes');
-              } else {
-                setMesAno(e.target.value);
-              }
-            }}
+            onChange={(e) => setMesAno(e.target.value)}
           >
-            <option value="__gerenciar__">⚙ Gerenciar</option>
             {mesOpcoes.map((m) => (
               <option key={m.val} value={m.val}>
                 {m.label}
               </option>
             ))}
           </select>
+          <button className="btn-icon btn-icon-sm" onClick={() => setSubPage('gerenciar-mes')} title="Gerenciar meses">
+            <Settings size={14} />
+          </button>
           <button className="btn-icon" onClick={() => setSubPage('historico')} title="Histórico e Projeções">
             <LineChart size={16} />
           </button>
