@@ -8,8 +8,18 @@ import { GastosFixos } from './GastosFixos';
 import { OutrosGastos } from './OutrosGastos';
 import { MinhaConta } from './MinhaConta';
 import { Historico } from './Historico';
+import { GerenciarMes } from './GerenciarMes';
 import { Eye, EyeOff, Settings, Lock, Sun, Moon, LineChart } from 'lucide-react';
 import './FinancasDashboard.css';
+
+
+const MESES_ABREV = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+function mesAnoToLabel(mesAno: string): string {
+  const [ano, mes] = mesAno.split('-').map(Number);
+  if (!mes || !ano || mes < 1 || mes > 12) return mesAno;
+  return `${MESES_ABREV[mes - 1]} ${ano}`;
+}
 
 interface FinancasDashboardProps {
   openCreateTrigger?: number;
@@ -22,9 +32,11 @@ export const FinancasDashboard: React.FC<FinancasDashboardProps> = ({ openCreate
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
 
   // Subpages overlays
-  const [subPage, setSubPage] = useState<'rendas' | 'card-detalhe' | 'gerenciar-cartoes' | 'gastos-fixos' | 'outros-gastos' | 'minha-conta' | 'historico' | null>(null);
+  const [subPage, setSubPage] = useState<'rendas' | 'card-detalhe' | 'gerenciar-cartoes' | 'gastos-fixos' | 'outros-gastos' | 'minha-conta' | 'historico' | 'gerenciar-mes' | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [selectedCardNome, setSelectedCardNome] = useState('');
+  // Meses adicionados manualmente (fora do range padrão)
+  const [mesesExtras, setMesesExtras] = useState<{ val: string; label: string }[]>([]);
 
   // Toast & Custom Confirm
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -48,10 +60,8 @@ export const FinancasDashboard: React.FC<FinancasDashboardProps> = ({ openCreate
     });
   };
 
-  const MESES_ABREV = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-
   const popularMeses = () => {
-    const list = [];
+    const list: { val: string; label: string }[] = [];
     const inicio = new Date(2026, 0); // Jan 2026
     const hoje = new Date();
     const fim = new Date(hoje.getFullYear(), hoje.getMonth() + 6);
@@ -66,7 +76,13 @@ export const FinancasDashboard: React.FC<FinancasDashboardProps> = ({ openCreate
     return list;
   };
 
-  const mesOpcoes = popularMeses();
+  // Mescla range padrão com meses adicionados manualmente, sem duplicatas, ordenado
+  const mesOpcoes = (() => {
+    const base = popularMeses();
+    const valsBase = new Set(base.map((m) => m.val));
+    const extras = mesesExtras.filter((m) => !valsBase.has(m.val));
+    return [...base, ...extras].sort((a, b) => a.val.localeCompare(b.val));
+  })();
 
   const fetchDados = useCallback(async () => {
     const t = await financeService.calcularTotais(mesAno);
@@ -129,6 +145,39 @@ export const FinancasDashboard: React.FC<FinancasDashboardProps> = ({ openCreate
     }
   }, [openCreateTrigger]);
 
+  // Carrega meses fora do range padrão que existem no banco (ex: adicionados manualmente)
+  useEffect(() => {
+    financeService.getMesesDisponiveis().then((todos) => {
+      const base = popularMeses().map((m) => m.val);
+      const baseSet = new Set(base);
+      const extras = todos
+        .filter((val) => !baseSet.has(val))
+        .map((val) => ({ val, label: mesAnoToLabel(val) }));
+      if (extras.length > 0) setMesesExtras(extras);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleMesAdicionado = (novoMesAno: string) => {
+    setMesesExtras((prev) => {
+      if (prev.some((m) => m.val === novoMesAno)) return prev;
+      return [...prev, { val: novoMesAno, label: mesAnoToLabel(novoMesAno) }];
+    });
+    setMesAno(novoMesAno);  // navega para o novo mês
+    setSubPage(null);
+  };
+
+  const handleMesApagado = (mesApagado: string) => {
+    // Se apagou o mês atual, volta para o mês real de hoje
+    if (mesApagado === mesAno) {
+      const agora = new Date();
+      setMesAno(`${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}`);
+    }
+    // Remove dos extras se estava lá
+    setMesesExtras((prev) => prev.filter((m) => m.val !== mesApagado));
+    setSubPage(null);
+  };
+
   const toggleHideValues = () => {
     const newVal = !hideValues;
     setHideValues(newVal);
@@ -178,8 +227,15 @@ export const FinancasDashboard: React.FC<FinancasDashboardProps> = ({ openCreate
           <select
             className="month-selector"
             value={mesAno}
-            onChange={(e) => setMesAno(e.target.value)}
+            onChange={(e) => {
+              if (e.target.value === '__gerenciar__') {
+                setSubPage('gerenciar-mes');
+              } else {
+                setMesAno(e.target.value);
+              }
+            }}
           >
+            <option value="__gerenciar__">⚙ Gerenciar</option>
             {mesOpcoes.map((m) => (
               <option key={m.val} value={m.val}>
                 {m.label}
@@ -401,6 +457,18 @@ export const FinancasDashboard: React.FC<FinancasDashboardProps> = ({ openCreate
 
       {subPage === 'historico' && (
         <Historico onClose={() => setSubPage(null)} />
+      )}
+
+      {subPage === 'gerenciar-mes' && (
+        <GerenciarMes
+          mesAtual={mesAno}
+          mesOpcoes={mesOpcoes}
+          onClose={() => setSubPage(null)}
+          onMesAdicionado={handleMesAdicionado}
+          onMesApagado={handleMesApagado}
+          toast={triggerToast}
+          confirmar={triggerConfirm}
+        />
       )}
     </div>
   );

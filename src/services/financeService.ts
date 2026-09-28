@@ -1386,6 +1386,153 @@ class FinanceService {
     }
   }
 
+  /**
+   * Retorna todos os mes_ano que existem na tabela rendas para o usuário,
+   * em ordem crescente. Usado para popular o seletor com meses fora do range padrão.
+   */
+  async getMesesDisponiveis(): Promise<string[]> {
+    try {
+      const sessao = await this.getSessao();
+      if (!sessao) return [];
+      const { data, error } = await supabase
+        .from('rendas')
+        .select('mes_ano')
+        .eq('user_id', sessao.user.id)
+        .order('mes_ano', { ascending: true });
+      if (error) throw error;
+      return (data || []).map((d) => d.mes_ano);
+    } catch (e) {
+      console.error('[FinanceService] getMesesDisponiveis:', e);
+      return [];
+    }
+  }
+
+  /**
+   * Apaga todos os lançamentos de um mês (transações, gastos fixos, outros gastos,
+   * cartões pagos, tarefas vinculadas) mas mantém o registro de rendas zerado.
+   * Nunca lança erro para quem chama.
+   */
+  async limparMes(mesAno: string): Promise<{ ok: boolean; erro?: string }> {
+    try {
+      const sessao = await this.getSessao();
+      if (!sessao) return { ok: false, erro: 'Sem sessão' };
+
+      // 1. Coleta tarefa_ids de gastos fixos vinculados ao mês
+      const { data: gastos } = await supabase
+        .from('gastos_fixos')
+        .select('tarefa_id')
+        .eq('mes_ano', mesAno)
+        .eq('user_id', sessao.user.id);
+
+      const tarefasGastos = (gastos || [])
+        .map((g) => g.tarefa_id)
+        .filter(Boolean) as string[];
+
+      // 2. Coleta tarefa_ids de vencimentos de cartão do mês
+      const { data: vinculos } = await supabase
+        .from('cartoes_vencimento_tarefas')
+        .select('tarefa_id')
+        .eq('mes_ano', mesAno)
+        .eq('user_id', sessao.user.id);
+
+      const tarefasCartao = (vinculos || [])
+        .map((v) => v.tarefa_id)
+        .filter(Boolean) as string[];
+
+      // 3. Remove os vínculos de vencimento de cartão do mês
+      await supabase
+        .from('cartoes_vencimento_tarefas')
+        .delete()
+        .eq('mes_ano', mesAno)
+        .eq('user_id', sessao.user.id);
+
+      // 4. Apaga as tarefas vinculadas (gastos fixos + vencimentos)
+      const todasTarefas = [...tarefasGastos, ...tarefasCartao];
+      if (todasTarefas.length > 0) {
+        await supabase
+          .from('tarefas')
+          .delete()
+          .in('id', todasTarefas)
+          .eq('usuario_id', sessao.user.id);
+      }
+
+      // 5. Apaga gastos fixos do mês
+      await supabase
+        .from('gastos_fixos')
+        .delete()
+        .eq('mes_ano', mesAno)
+        .eq('user_id', sessao.user.id);
+
+      // 6. Apaga transações do mês (parcelas de cartão)
+      await supabase
+        .from('transacoes')
+        .delete()
+        .eq('mes_ano', mesAno)
+        .eq('user_id', sessao.user.id);
+
+      // 7. Apaga outros gastos do mês
+      await supabase
+        .from('outros_gastos')
+        .delete()
+        .eq('mes_ano', mesAno)
+        .eq('user_id', sessao.user.id);
+
+      // 8. Apaga status de pagamento de cartões do mês
+      await supabase
+        .from('cartoes_pagos')
+        .delete()
+        .eq('mes_ano', mesAno)
+        .eq('user_id', sessao.user.id);
+
+      // 9. Zera os valores de rendas, mas mantém o registro do mês
+      await supabase
+        .from('rendas')
+        .update({
+          salario: 0,
+          decimo: 0,
+          premio: 0,
+          outros: 0,
+          cheque_especial: 0,
+          va_total: 0,
+          va_gasto: 0,
+          va_restante: 0,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq('mes_ano', mesAno)
+        .eq('user_id', sessao.user.id);
+
+      return { ok: true };
+    } catch (e: any) {
+      console.error('[FinanceService] limparMes:', e);
+      return { ok: false, erro: e.message };
+    }
+  }
+
+  /**
+   * Apaga completamente um mês: limpa todos os lançamentos (via limparMes)
+   * e então remove o próprio registro de rendas. Ação irreversível.
+   */
+  async apagarMes(mesAno: string): Promise<{ ok: boolean; erro?: string }> {
+    try {
+      const limpar = await this.limparMes(mesAno);
+      if (!limpar.ok) return limpar;
+
+      const sessao = await this.getSessao();
+      if (!sessao) return { ok: false, erro: 'Sem sessão' };
+
+      await supabase
+        .from('rendas')
+        .delete()
+        .eq('mes_ano', mesAno)
+        .eq('user_id', sessao.user.id);
+
+      return { ok: true };
+    } catch (e: any) {
+      console.error('[FinanceService] apagarMes:', e);
+      return { ok: false, erro: e.message };
+    }
+  }
+
   async criarTarefaCompartilhada(
     receptorId: string,
     data: string,
