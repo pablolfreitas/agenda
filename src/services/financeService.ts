@@ -1213,6 +1213,7 @@ class FinanceService {
           .reduce((s, g) => s + Number(g.valor), 0);
 
         const gastosTotais = gastosCartoes + gastosFixosTot + gastosOutrosTot;
+        const [ano, mes] = mesAno.split('-').map(Number);
         const label = `${MESES_ABREV[mes - 1]} ${String(ano).slice(-2)}`;
 
         return {
